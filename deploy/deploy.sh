@@ -1,25 +1,47 @@
 #!/bin/sh
-# Ship Orbit to Jinx. A static build, so there is no container, no restart and
-# nothing to keep running: Caddy serves dist/ straight off the disk. Needs
-# install.sh to have run once as root first.
+# Ship Orbit to Jinx. Runs from a dev box, not on Jinx: everything it does
+# there goes over one ssh.
 #
-# The build happens here rather than on the box, which keeps node and a
-# lockfile install off the server entirely.
+# The box has git and docker but no node, so it pulls the committed source from
+# GitHub and builds in a throwaway node container. That keeps a node install
+# off the server, and it means what is served is what is on the branch rather
+# than whatever happened to be in a working copy at the time.
 #
-# The old dist is removed rather than written over: a stale hashed asset left
-# behind would still be served to a cached page, and unlinking needs write on
-# the directory rather than on the file, so this works even if a previous
-# deploy left files owned by someone else.
+# Needs install.sh to have run once as root first: /opt/apps is root-owned, so
+# the empty app directory has to be created and chowned before a clone can land
+# in it.
 set -eu
-cd "$(dirname "$0")/.."
 
-npm run build
+REPO="${REPO:-https://github.com/MayurJivani/Orbit.git}"
+BRANCH="${BRANCH:-main}"
+HOST="${HOST:-ssh.futile.studio}"
+APP=/opt/apps/Orbit
 
-tar czf - dist deploy README.md HOW-IT-WORKS.md | ssh ssh.futile.studio '
-  set -eu
-  cd /opt/apps/Orbit
-  rm -rf ./dist ./deploy ./README.md ./HOW-IT-WORKS.md
-  tar xzf -
-'
+ssh "$HOST" "
+set -eu
+if [ -d $APP/.git ]; then
+  # Hard reset rather than pull: the box is a deploy target, so the branch wins
+  # over anything that was poked at locally, and a fast-forward that cannot
+  # apply should not stop a deploy.
+  git -C $APP remote set-url origin '$REPO'
+  git -C $APP fetch --prune origin '$BRANCH'
+  git -C $APP reset --hard 'origin/$BRANCH'
+  git -C $APP clean -fd -e node_modules -e dist
+else
+  git clone --branch '$BRANCH' '$REPO' $APP
+fi
 
-echo "orbit: deployed to Jinx, http://orbit.futile.studio"
+# Build as the invoking user, or npm leaves root-owned files behind and the next
+# deploy cannot clean them up. HOME is set because npm wants somewhere to put
+# its cache and the container's root home is not writable by this uid.
+docker run --rm \
+  -v $APP:/app -w /app \
+  -u \"\$(id -u):\$(id -g)\" \
+  -e HOME=/tmp \
+  node:22-alpine \
+  sh -c 'npm ci --no-audit --no-fund && npm test && npm run build'
+
+git -C $APP log -1 --format='orbit: deployed %h %s'
+"
+
+echo "orbit: http://orbit.futile.studio"

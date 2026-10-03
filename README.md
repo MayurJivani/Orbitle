@@ -5,6 +5,7 @@
 ![Node](https://img.shields.io/badge/Node-22%2B-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white)
 ![No backend](https://img.shields.io/badge/backend-none-5eb8ff?style=flat-square)
 ![Tests](https://img.shields.io/badge/tests-11%20passing-success?style=flat-square)
+[![Last commit](https://img.shields.io/github/last-commit/MayurJivani/Orbit?style=flat-square)](https://github.com/MayurJivani/Orbit/commits/main)
 
 A daily guessing game about orbits. Five things a day, one dial running from low
 lunar orbit out past Voyager 1, and the only question is how far out it goes.
@@ -33,12 +34,13 @@ npm test
 
 ## Deploying
 
-A static build, so Jinx serves `dist/` off the disk and there is no container
-and nothing to restart.
+A static build, so Jinx serves `dist/` off the disk and there is nothing to
+restart. The box has no node, so it pulls this branch from GitHub and builds in
+a throwaway `node:22-alpine` container.
 
 ```sh
 sudo sh deploy/install.sh   # once, as root: app directory and the Caddy block
-deploy/deploy.sh            # every time after that, no privileges needed
+deploy/deploy.sh            # every time after that, from a dev box, not Jinx
 ```
 
 The tunnel on that box is token-managed, so `orbit.futile.studio` also needs an

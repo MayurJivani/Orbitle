@@ -1,7 +1,8 @@
 #!/bin/sh
-# One-time setup on Jinx: the app directory, and the site block that puts
-# orbit.futile.studio in front of it. Needs root, and is the only step that
-# does; deploy.sh afterwards needs no privileges at all.
+# One-time setup on Jinx: the app directory for the clone to land in, and the
+# site block that puts orbit.futile.studio in front of it. Needs root, and is
+# the only step that does, because /opt/apps and the Caddyfile are both
+# root-owned; deploy.sh afterwards needs no privileges at all.
 #
 # Re-runnable: it strips any previous orbit block before appending, so editing
 # deploy/orbit.caddy and running this again is the way to change the site
