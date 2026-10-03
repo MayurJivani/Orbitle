@@ -1,0 +1,18 @@
+
+http://orbit.futile.studio {
+	root * /opt/apps/Orbit/dist
+	encode zstd gzip
+
+	# Astro hashes the bundle filenames, so the two halves cache differently.
+	# index.html must revalidate or a deploy serves yesterday's page against
+	# today's assets; the hashed files can never go stale, since a change to one
+	# changes its name. The second matcher excludes /_astro/* rather than
+	# relying on directive order: both header directives match every request
+	# otherwise, and the last one written would win.
+	@hashed path /_astro/*
+	@page not path /_astro/*
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	header @page Cache-Control "no-cache"
+
+	file_server
+}

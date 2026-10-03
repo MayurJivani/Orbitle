@@ -1,5 +1,6 @@
 # ORBIT
 
+[![Live](https://img.shields.io/website?url=https%3A%2F%2Forbit.futile.studio&label=orbit.futile.studio&style=flat-square)](https://orbit.futile.studio)
 ![Astro](https://img.shields.io/badge/Astro-7-BC52EE?style=flat-square&logo=astro&logoColor=white)
 ![Node](https://img.shields.io/badge/Node-22%2B-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white)
 ![No backend](https://img.shields.io/badge/backend-none-5eb8ff?style=flat-square)
@@ -29,3 +30,17 @@ measured from whatever the thing orbits) is in
 ```sh
 npm test
 ```
+
+## Deploying
+
+A static build, so Jinx serves `dist/` off the disk and there is no container
+and nothing to restart.
+
+```sh
+sudo sh deploy/install.sh   # once, as root: app directory and the Caddy block
+deploy/deploy.sh            # every time after that, no privileges needed
+```
+
+The tunnel on that box is token-managed, so `orbit.futile.studio` also needs an
+ingress pointing at `http://localhost:80` in the Cloudflare dashboard. Until
+that exists the hostname has no DNS record and nothing reaches Caddy.
