@@ -1,6 +1,6 @@
 # ORBIT
 
-![Astro](https://img.shields.io/badge/Astro-6-BC52EE?style=flat-square&logo=astro&logoColor=white)
+![Astro](https://img.shields.io/badge/Astro-7-BC52EE?style=flat-square&logo=astro&logoColor=white)
 ![Node](https://img.shields.io/badge/Node-22%2B-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white)
 ![No backend](https://img.shields.io/badge/backend-none-5eb8ff?style=flat-square)
 ![Tests](https://img.shields.io/badge/tests-11%20passing-success?style=flat-square)
