@@ -7,8 +7,8 @@
 ![Tests](https://img.shields.io/badge/tests-11%20passing-success?style=flat-square)
 [![Last commit](https://img.shields.io/github/last-commit/MayurJivani/Orbit?style=flat-square)](https://github.com/MayurJivani/Orbit/commits/main)
 
-A daily guessing game about orbits. Five things a day, one dial running from low
-lunar orbit out past Voyager 1, and the only question is how far out it goes.
+A daily guessing game about orbits. Five things a day, and the only question is
+how far out it goes.
 
 ```sh
 npm install
@@ -16,9 +16,22 @@ npm run dev
 ```
 
 Drag the marker to the ring you think it orbits at, or use the arrow keys. The
-angle is decoration: only the distance from the centre counts. Score is 100 per
-round, minus 40 for every factor of ten you are out, so the game asks whether
-you know the region, not the kilometre.
+angle is decoration: only the distance from the centre counts.
+
+There are three dials, and a round is asked on whichever one its answer lives
+on. Two of them are read against Earth whatever the round is about, because
+knowing Phobos orbits Mars somewhere between geostationary and the GPS
+constellation is the kind of answer worth having.
+
+| Dial | Span |
+| :--- | :--- |
+| Near Earth | surface to geostationary |
+| Earth system | geostationary to past the Moon |
+| Solar system | Mercury to Voyager 1 |
+
+Score is 100 a round, minus a point for every 1% of the dial you miss by. A
+share of the dial rather than a flat penalty per factor of ten, so five rounds
+on three different dials still add up to one comparable total.
 
 Everyone gets the same five objects on the same UTC day, picked by a seeded
 shuffle, which is what makes a score worth sending to someone. There is no

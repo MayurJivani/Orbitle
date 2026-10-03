@@ -1,8 +1,10 @@
 ---
 /**
- * The studio's blueprint palette and type, same as Patina: dark ground, hairline
- * blue grid, condensed display face over a mono body. A dial drawn on graph
- * paper is the whole visual idea, so the theme is colour, grid and type only.
+ * Deep space: near-black ground, two faint nebula washes, and the starfield
+ * drawn into the dial itself. No grid and no drafting-table surfaces, since the
+ * subject is the sky rather than a plan of it. The type pairing stays the
+ * studio's (condensed display over a mono body), which reads as mission
+ * telemetry without any help from the palette.
  */
 interface Props { title: string }
 const { title } = Astro.props
@@ -16,9 +18,9 @@ const { title } = Astro.props
 		<title>{title}</title>
 		<meta
 			name="description"
-			content="A daily guessing game about orbits. Five things a day, one log-scale dial from low Earth orbit out to Voyager 1, and the only question is how far out it goes."
+			content="A daily guessing game about orbits. Five things a day on three dials: near Earth, the Earth system, and the solar system out to Voyager 1."
 		/>
-		<meta name="theme-color" content="#060c18" />
+		<meta name="theme-color" content="#03050a" />
 		<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 		<link rel="preconnect" href="https://fonts.googleapis.com" />
 		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -34,19 +36,22 @@ const { title } = Astro.props
 
 <style is:global>
 	:root {
-		--bg: #060c18;
-		--surface: #0d1c33;
-		--surface-lt: #112342;
-		--line: rgba(120, 179, 255, 0.14);
-		--line-strong: rgba(120, 179, 255, 0.32);
-		--cyan: #5eb8ff;
-		--cyan-soft: #a9d3ff;
-		--white: #eef4fb;
-		--muted: #7e93b8;
-		--faint: #3a4d70;
-		--red: #ff5b45;
-		--amber: #ffb648;
-		--green: #4fd58a;
+		--bg: #03050a;
+		--surface: rgba(16, 24, 42, 0.62);
+		--surface-lt: rgba(34, 48, 78, 0.7);
+		--line: rgba(190, 212, 255, 0.1);
+		--line-strong: rgba(190, 212, 255, 0.24);
+		--star: #dfe9ff;
+		--white: #eaf0fb;
+		/* Both greys are set by contrast, not by taste: the small tracked-out
+		   labels are 10-11px, so they need 4.5:1, and they have to clear it
+		   against the lightest part of the nebula wash and not just the
+		   near-black ground. A darker --faint looked better and failed. */
+		--muted: #a3b0c9;
+		--faint: #808ea9;
+		--amber: #ffc14d;
+		--green: #5ce39b;
+		--hub: #bcd6ff;
 
 		--display: 'Big Shoulders Display', 'Arial Narrow', sans-serif;
 		--mono: 'JetBrains Mono', 'Space Mono', 'Courier New', monospace;
@@ -57,14 +62,13 @@ const { title } = Astro.props
 	html, body { margin: 0; min-height: 100%; }
 
 	body {
-		background: var(--bg);
-		background-image:
-			linear-gradient(var(--line) 1px, transparent 1px),
-			linear-gradient(90deg, var(--line) 1px, transparent 1px),
-			linear-gradient(rgba(120, 179, 255, 0.06) 1px, transparent 1px),
-			linear-gradient(90deg, rgba(120, 179, 255, 0.06) 1px, transparent 1px);
-		background-size: 160px 160px, 160px 160px, 20px 20px, 20px 20px;
-		background-position: -1px -1px;
+		/* Two cold nebula washes over near-black. No repeating pattern: a tiled
+		   background reads as wallpaper, and space does not tile. */
+		background:
+			radial-gradient(1100px 780px at 72% -12%, rgba(64, 98, 190, 0.2), transparent 62%),
+			radial-gradient(900px 700px at 6% 112%, rgba(120, 66, 170, 0.16), transparent 60%),
+			var(--bg);
+		background-attachment: fixed;
 		color: var(--white);
 		font-family: var(--mono);
 		font-size: 13px;
@@ -89,9 +93,11 @@ const { title } = Astro.props
 	}
 
 	.plate {
-		background: color-mix(in srgb, var(--surface) 88%, transparent);
-		border: 1px solid var(--line-strong);
+		background: var(--surface);
+		border: 1px solid var(--line);
+		border-radius: 3px;
 		padding: 12px 16px;
+		backdrop-filter: blur(10px);
 	}
 
 	button {
@@ -103,7 +109,7 @@ const { title } = Astro.props
 	}
 
 	:focus-visible {
-		outline: 2px solid var(--cyan);
+		outline: 2px solid var(--amber);
 		outline-offset: 2px;
 	}
 

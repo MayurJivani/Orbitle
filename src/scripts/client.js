@@ -1,14 +1,14 @@
 /**
- * The page's only script. It moves one marker, locks in five guesses, and keeps
- * the day's guesses in localStorage so a reload resumes instead of restarting.
- * Every rule it applies comes from shared/orbit.js.
+ * The page's only script. It picks the round's dial, moves one marker, locks in
+ * five guesses, and keeps the day's guesses in localStorage so a reload resumes
+ * instead of restarting. Every rule it applies comes from shared/orbit.js.
  */
 import {
-	DECADES_ON_DIAL,
 	DIAL,
 	ROUNDS_PER_DAY,
 	dayKey,
 	dayNumber,
+	decadesOf,
 	formatKm,
 	formatRatio,
 	grade,
@@ -16,6 +16,7 @@ import {
 	pickDaily,
 	pxFromKm,
 	ratio,
+	scaleFor,
 	score,
 } from '../../shared/orbit.js'
 import { OBJECTS } from '../../shared/objects.js'
@@ -24,6 +25,8 @@ const $ = (id) => document.getElementById(id)
 
 const dial = $('dial')
 const handle = $('handle')
+const ringGroups = dial.querySelectorAll('.rings')
+const dialRows = $('dials').querySelectorAll('li')
 const el = {
 	day: $('day'),
 	round: $('round'),
@@ -55,6 +58,7 @@ const store = `orbit:${key}`
 /** The day's locked-in guesses, in km. Index into `hand`. */
 let guesses = load()
 let index = Math.min(guesses.length, hand.length - 1)
+let scale = scaleFor(hand[index].km)
 let angle = -Math.PI / 4
 let t = 0.5
 let revealed = false
@@ -85,6 +89,10 @@ function radiusPx() {
 	return DIAL.inner + t * (DIAL.outer - DIAL.inner)
 }
 
+function guessKm() {
+	return kmFromPx(radiusPx(), scale)
+}
+
 function moveMarker() {
 	const r = radiusPx()
 	const x = DIAL.cx + Math.cos(angle) * r
@@ -96,14 +104,9 @@ function moveMarker() {
 		c.setAttribute('cx', x)
 		c.setAttribute('cy', y)
 	}
-	const km = kmFromPx(r)
-	el.readout.textContent = formatKm(km)
+	el.readout.textContent = formatKm(guessKm())
 	handle.setAttribute('aria-valuenow', Math.round(t * 1000))
-	handle.setAttribute('aria-valuetext', formatKm(km))
-}
-
-function guessKm() {
-	return kmFromPx(radiusPx())
+	handle.setAttribute('aria-valuetext', `${formatKm(guessKm())} from ${hand[index].primary}`)
 }
 
 /**
@@ -128,6 +131,14 @@ function aimAt(event) {
 
 function renderRound() {
 	const o = hand[index]
+	scale = scaleFor(o.km)
+
+	// Only the round's own dial is on screen. Three sets of rings at once would
+	// be unreadable, and a ring you can see but cannot aim at is a trap. The
+	// class rather than `hidden`, which SVG ignores.
+	for (const g of ringGroups) g.classList.toggle('off', g.dataset.scale !== scale.id)
+	for (const row of dialRows) row.classList.toggle('is-on', row.dataset.scale === scale.id)
+
 	el.day.textContent = `${key} · puzzle ${dayNumber(key)}`
 	el.round.textContent = `round ${index + 1} of ${ROUNDS_PER_DAY}`
 	el.subject.textContent = o.name
@@ -135,22 +146,21 @@ function renderRound() {
 		o.kind === 'orbit' ? `orbits ${o.primary}` : `heading away from ${o.primary}`
 	el.hub.textContent = o.primary.replace(/^the /, '')
 	el.verdict.hidden = true
-	el.answer.hidden = true
+	el.answer.classList.add('off')
 	el.next.hidden = true
 	el.place.hidden = false
-	el.place.disabled = false
 	revealed = false
+	t = 0.5
 	moveMarker()
 }
 
 function reveal() {
 	const o = hand[index]
 	const guess = guesses[index]
-	const points = score(guess, o.km)
-	const g = grade(points)
+	const points = score(guess, o.km, scale)
 
-	el.answer.setAttribute('r', pxFromKm(o.km))
-	el.answer.hidden = false
+	el.answer.setAttribute('r', pxFromKm(o.km, scale))
+	el.answer.classList.remove('off')
 	el.actual.textContent = formatKm(o.km)
 	el.delta.textContent =
 		points === 100
@@ -158,17 +168,26 @@ function reveal() {
 			: `${formatRatio(ratio(guess, o.km))} too ${guess > o.km ? 'far out' : 'close in'}`
 	el.note.textContent = o.note
 	el.points.textContent = String(points)
-	el.grade.textContent = g.word
+	el.grade.textContent = grade(points).word
 	el.verdict.hidden = false
 	el.place.hidden = true
 	el.next.hidden = index >= hand.length - 1
+
+	// Leave the marker where it was placed, so the two rings can be compared.
+	t = (pxFromKm(guess, scale) - DIAL.inner) / (DIAL.outer - DIAL.inner)
+	moveMarker()
 	revealed = true
 }
 
+/** Each round is scored on its own dial, which is why this is not one map. */
+function points() {
+	return hand.map((o, i) => score(guesses[i], o.km, scaleFor(o.km)))
+}
+
 function finish() {
-	const points = hand.map((o, i) => score(guesses[i], o.km))
-	el.total.textContent = String(points.reduce((a, b) => a + b, 0))
-	el.runs.textContent = points.map((p) => grade(p).glyph).join('')
+	const run = points()
+	el.total.textContent = String(run.reduce((a, b) => a + b, 0))
+	el.runs.textContent = run.map((p) => grade(p).glyph).join('')
 	el.summary.hidden = false
 	el.share.hidden = false
 	el.next.hidden = true
@@ -176,11 +195,10 @@ function finish() {
 }
 
 function shareText() {
-	const points = hand.map((o, i) => score(guesses[i], o.km))
-	const total = points.reduce((a, b) => a + b, 0)
+	const run = points()
 	return [
-		`Orbit ${dayNumber(key)}: ${total}/${ROUNDS_PER_DAY * 100}`,
-		points.map((p) => grade(p).glyph).join(''),
+		`Orbit ${dayNumber(key)}: ${run.reduce((a, b) => a + b, 0)}/${ROUNDS_PER_DAY * 100}`,
+		run.map((p) => grade(p).glyph).join(''),
 		location.origin || '',
 	]
 		.filter(Boolean)
@@ -188,6 +206,7 @@ function shareText() {
 }
 
 el.place.addEventListener('click', () => {
+	if (revealed) return
 	guesses[index] = guessKm()
 	save()
 	reveal()
@@ -232,9 +251,11 @@ dial.addEventListener('pointerup', (event) => {
 // The dial is a slider as far as the keyboard is concerned: a fifth of a factor
 // of ten on the arrows, a whole one on shift-arrow or page up/down, the ends on
 // home/end, and enter to lock the guess in without reaching for the button.
+// The step is a share of the active dial, so it covers the same distance on all
+// three rather than crawling across the widest one.
 handle.addEventListener('keydown', (event) => {
 	if (revealed) return
-	const decade = 1 / DECADES_ON_DIAL // one factor of ten, as a fraction of the dial
+	const decade = 1 / decadesOf(scale)
 	const step = { ArrowUp: 1, ArrowRight: 1, ArrowDown: -1, ArrowLeft: -1 }[event.key]
 	let next = t
 	if (step !== undefined) next = t + step * decade * (event.shiftKey ? 1 : 0.2)
@@ -256,8 +277,6 @@ handle.addEventListener('keydown', (event) => {
 renderRound()
 if (guesses[index] !== undefined) {
 	// Resuming a round already answered: show it as it was left, answer and all.
-	t = (pxFromKm(guesses[index]) - DIAL.inner) / (DIAL.outer - DIAL.inner)
-	moveMarker()
 	reveal()
 	if (guesses.length === hand.length) finish()
 }

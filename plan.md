@@ -28,3 +28,39 @@ Low-medium. No backend needed for V1 (static JSON + client scoring). Main work i
 
 ## Verdict
 Solid low-risk filler project. Good first build to validate the "drag onto a scaled diagram" interaction pattern you'll reuse in Scale-of-Things and How-Far.
+
+## Built (V1)
+
+Three log dials instead of one, since one scale from a low lunar orbit to
+Voyager 1 is seven and a half factors of ten and makes the inner solar system a
+smudge. Near Earth (surface to geostationary) and Earth system (geostationary to
+past the Moon) are both read against Earth landmarks whatever the round is
+about; Solar system (Mercury to Voyager 1) is the third. A round uses whichever
+dial its answer lives on. Score is a point per 1% of that dial you miss by, so
+the five rounds stay comparable across dials. Space theme: near-black, nebula
+washes, seeded starfield. No backend.
+
+## Next iteration: 3D mode
+
+A real 3D view alongside the dial, in the spirit of **Universe Sandbox 2**, with
+**Celestia** and the **Gravity Simulator at orbitsimulator.com** as the other
+two references. Celestia is the one to study for how it handles the scale
+problem this game is entirely about (exaggerated body sizes, log-ish camera
+distance, labels that survive a 10-order-of-magnitude zoom), and Gravity
+Simulator for how little UI an orbit editor actually needs.
+
+Shape it would take, to be decided when it is built:
+
+- Guess by placing a body in a 3D scene and letting it orbit, rather than by
+  dragging a radius on a flat dial. The scoring stays the same question: how far
+  out, on a log scale.
+- Reveal becomes an animation: the guessed orbit and the real one running
+  together, which is a far better answer than two rings.
+- Needs a renderer, which means the first real dependency in this repo (Three.js
+  is the obvious one) and a decision about whether the dial stays as the default
+  with 3D as a mode, or 3D becomes the game. Keep the dial: it is the
+  accessible, keyboard-playable, instant-loading path, and a daily game cannot
+  require a GPU.
+- Bodies and orbital elements beyond semi-major axis (eccentricity,
+  inclination) would need adding to the catalogue, which is currently one
+  distance per entry on purpose.

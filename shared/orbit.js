@@ -6,41 +6,100 @@
 export const AU = 149_597_870
 
 /**
- * The dial runs from 1,000 km (a low lunar orbit) to 200 AU (past Voyager 1).
- * Everything in the catalogue fits inside it with a little room at both ends,
- * because a target pinned against a stop is a free answer.
+ * Three dials instead of one. A single scale from a low lunar orbit out to
+ * Voyager 1 spans seven and a half factors of ten, which makes the whole inner
+ * solar system one unreadable smudge near the centre. Each of these spans two
+ * or three instead, and a round uses whichever one its answer lives on.
+ *
+ * The first two are read against Earth on purpose: whatever the round is about,
+ * the rings say where that distance would put you in Earth's own
+ * neighbourhood. Knowing Phobos orbits Mars somewhere between geostationary and
+ * the GPS constellation is the kind of answer worth having.
+ *
+ * Ranges are a little wider than the entries that land on them at both ends: an
+ * answer sitting on a stop would be a free guess, since a stop is the one ring
+ * a player can find without knowing anything.
  */
-export const SCALE_MIN_KM = 1_000
-export const SCALE_MAX_KM = 200 * AU
-
-/** Penalty per factor-of-ten miss. Ten times out is a 40 point haircut. */
-export const PENALTY_PER_DECADE = 40
+export const SCALES = [
+	{
+		id: 'near-earth',
+		name: 'Near Earth',
+		span: 'surface to geostationary',
+		minKm: 1_500,
+		maxKm: 120_000,
+		anchors: [
+			{ km: 6_371, label: 'Earth’s surface', major: true },
+			{ km: 26_560, label: 'GPS', major: false },
+			{ km: 42_164, label: 'geostationary', major: true },
+		],
+	},
+	{
+		id: 'earth-system',
+		name: 'Earth system',
+		span: 'geostationary to past the Moon',
+		minKm: 100_000,
+		maxKm: 6_000_000,
+		anchors: [
+			{ km: 384_400, label: 'the Moon', major: true },
+			{ km: 1_500_000, label: 'Webb at L2', major: false },
+			{ km: 3_844_000, label: 'the Moon ×10', major: false },
+		],
+	},
+	{
+		id: 'solar',
+		name: 'Solar system',
+		span: 'Mercury to Voyager 1',
+		minKm: 0.2 * AU,
+		maxKm: 250 * AU,
+		anchors: [
+			{ km: AU, label: 'Earth’s orbit', major: true },
+			{ km: 5.204 * AU, label: 'Jupiter', major: false },
+			{ km: 30.07 * AU, label: 'Neptune', major: true },
+			{ km: 167 * AU, label: 'Voyager 1', major: false },
+		],
+	},
+]
 
 export const ROUNDS_PER_DAY = 5
 
-const LOG_MIN = Math.log10(SCALE_MIN_KM)
-const LOG_MAX = Math.log10(SCALE_MAX_KM)
+/**
+ * Which dial a distance belongs on: the first one that contains it. The ranges
+ * do not overlap anywhere the catalogue actually sits, so this needs no hint
+ * stored on the entry and cannot drift away from one.
+ */
+export function scaleFor(km) {
+	return SCALES.find((s) => km > s.minKm && km < s.maxKm)
+}
+
+const logSpan = (scale) => Math.log10(scale.maxKm) - Math.log10(scale.minKm)
+
+/** How many factors of ten a dial spans. One keyboard step is a fraction of it. */
+export function decadesOf(scale) {
+	return logSpan(scale)
+}
 
 /** Distance in km -> 0..1 along the dial. Log, or the inner rings vanish. */
-export function kmToT(km) {
-	const clamped = Math.min(Math.max(km, SCALE_MIN_KM), SCALE_MAX_KM)
-	return (Math.log10(clamped) - LOG_MIN) / (LOG_MAX - LOG_MIN)
+export function kmToT(km, scale) {
+	const clamped = Math.min(Math.max(km, scale.minKm), scale.maxKm)
+	return (Math.log10(clamped) - Math.log10(scale.minKm)) / logSpan(scale)
 }
 
 /** 0..1 along the dial -> distance in km. The inverse of kmToT. */
-export function tToKm(t) {
+export function tToKm(t, scale) {
 	const clamped = Math.min(Math.max(t, 0), 1)
-	return 10 ** (LOG_MIN + clamped * (LOG_MAX - LOG_MIN))
+	return 10 ** (Math.log10(scale.minKm) + clamped * logSpan(scale))
 }
 
 /**
- * Score one guess. 100 for spot on, less by how many factors of ten the guess
- * was out, floored at 0. Decades rather than kilometres because being 400 km
- * out matters enormously for the ISS and not at all for Voyager.
+ * Score one guess: 100, minus a point for every 1% of the dial you missed by,
+ * floored at 0. Share of the dial rather than a flat penalty per factor of ten,
+ * so the five rounds stay comparable even when they use different dials. A
+ * factor of ten is most of the Near Earth dial and a third of the solar one,
+ * and it should cost accordingly.
  */
-export function score(guessKm, actualKm) {
-	const decadesOff = Math.abs(Math.log10(guessKm) - Math.log10(actualKm))
-	return Math.max(0, Math.round(100 - PENALTY_PER_DECADE * decadesOff))
+export function score(guessKm, actualKm, scale) {
+	const missed = Math.abs(kmToT(guessKm, scale) - kmToT(actualKm, scale))
+	return Math.max(0, Math.round(100 - 100 * missed))
 }
 
 /** How far out the guess was, as a plain multiple ("2.4x too close"). */
@@ -66,9 +125,12 @@ export function dayNumber(key) {
 	return Math.floor((Date.parse(`${key}T00:00:00Z`) - epoch) / 86_400_000) + 1
 }
 
-// A seeded PRNG so a given day deals the same hand on every device, with no
-// server to ask. mulberry32: one line of state, good enough to shuffle with.
-function mulberry32(seed) {
+/**
+ * A seeded PRNG, so a given day deals the same hand on every device with no
+ * server to ask, and the starfield is in the same place on every build.
+ * mulberry32: one line of state, good enough to shuffle and to scatter with.
+ */
+export function rng(seed) {
 	let a = seed >>> 0
 	return () => {
 		a = (a + 0x6d2b79f5) >>> 0
@@ -93,7 +155,7 @@ function hash(str) {
  * A partial Fisher-Yates over a copy, so entries cannot repeat within a day.
  */
 export function pickDaily(objects, key, count = ROUNDS_PER_DAY) {
-	const rand = mulberry32(hash(key))
+	const rand = rng(hash(key))
 	const pool = objects.slice()
 	const n = Math.min(count, pool.length)
 	for (let i = 0; i < n; i++) {
@@ -125,36 +187,24 @@ export function formatKm(km) {
  */
 export const DIAL = { cx: 500, cy: 500, inner: 70, outer: 450 }
 
-/** How many factors of ten the dial spans. One keyboard step is a fraction of it. */
-export const DECADES_ON_DIAL = LOG_MAX - LOG_MIN
-
 /** Distance in km -> ring radius in SVG units. */
-export function pxFromKm(km) {
-	return DIAL.inner + kmToT(km) * (DIAL.outer - DIAL.inner)
+export function pxFromKm(km, scale) {
+	return DIAL.inner + kmToT(km, scale) * (DIAL.outer - DIAL.inner)
 }
 
 /** Ring radius in SVG units -> distance in km. The inverse of pxFromKm. */
-export function kmFromPx(px) {
-	return tToKm((px - DIAL.inner) / (DIAL.outer - DIAL.inner))
+export function kmFromPx(px, scale) {
+	return tToKm((px - DIAL.inner) / (DIAL.outer - DIAL.inner), scale)
 }
 
-/** Every whole factor of ten that fits on the dial, for the faint rings. */
-export function decades() {
+/** Every whole factor of ten that fits on a dial, for the faint rings. */
+export function decades(scale) {
 	const out = []
-	for (let e = Math.ceil(LOG_MIN); e <= Math.floor(LOG_MAX); e++) out.push(10 ** e)
+	const from = Math.ceil(Math.log10(scale.minKm))
+	const to = Math.floor(Math.log10(scale.maxKm))
+	for (let e = from; e <= to; e++) out.push(10 ** e)
 	return out
 }
-
-/** The ring labels. One per factor of ten, plus the landmarks people know. */
-export const ANCHORS = [
-	{ km: 6_371, label: 'Earth’s surface', major: true },
-	{ km: 42_164, label: 'geostationary', major: true },
-	{ km: 384_400, label: 'the Moon', major: true },
-	{ km: AU, label: 'Earth’s orbit', major: true },
-	{ km: 5.204 * AU, label: 'Jupiter', major: false },
-	{ km: 30.07 * AU, label: 'Neptune', major: false },
-	{ km: 167 * AU, label: 'Voyager 1', major: false },
-]
 
 /** Five buckets, so a run of results reads as a shape rather than a sum. */
 export function grade(points) {

@@ -1,12 +1,33 @@
 ---
 import Layout from '../layouts/Layout.astro'
-import { ANCHORS, DIAL, ROUNDS_PER_DAY, decades, formatKm, pxFromKm } from '../../shared/orbit.js'
+import { DIAL, ROUNDS_PER_DAY, SCALES, decades, formatKm, pxFromKm, rng } from '../../shared/orbit.js'
 
-// The rings never change, so they are drawn once at build time. The client only
-// ever moves the marker and reveals the answer.
-const rings = decades().map((km) => ({ r: pxFromKm(km), label: formatKm(km) }))
-const landmarks = ANCHORS.map((a) => ({ ...a, r: pxFromKm(a.km) }))
-const spokes = Array.from({ length: 12 }, (_, i) => (i * Math.PI) / 6)
+// All three dials are drawn once at build time and the client shows whichever
+// one the round needs. Nothing about the rings depends on the player, so none of
+// this belongs in a script.
+const dials = SCALES.map((scale) => ({
+	id: scale.id,
+	name: scale.name,
+	span: scale.span,
+	from: formatKm(scale.minKm),
+	to: formatKm(scale.maxKm),
+	rings: decades(scale).map((km) => ({ r: pxFromKm(km, scale), label: formatKm(km) })),
+	anchors: scale.anchors.map((a) => ({ ...a, r: pxFromKm(a.km, scale) })),
+}))
+
+// A fixed starfield, seeded so every build puts the stars in the same place.
+// Kept off the dial's own band so it never reads as a ring.
+const rand = rng(0x5e4a11)
+const stars = Array.from({ length: 220 }, () => {
+	const r = Math.sqrt(rand()) * 700
+	const a = rand() * Math.PI * 2
+	return {
+		cx: DIAL.cx + Math.cos(a) * r,
+		cy: DIAL.cy + Math.sin(a) * r,
+		r: 0.6 + rand() ** 3 * 2.4,
+		o: (0.18 + rand() * 0.72).toFixed(2),
+	}
+})
 ---
 
 <Layout title="Orbit: where does it orbit?">
@@ -21,38 +42,46 @@ const spokes = Array.from({ length: 12 }, (_, i) => (i * Math.PI) / 6)
 
 		<section class="stage">
 			<svg id="dial" viewBox="0 0 1000 1000" role="presentation">
-				<!-- Faint ring per factor of ten, labelled downward. -->
-				{rings.map((ring) => (
-					<g class="decade">
-						<circle cx={DIAL.cx} cy={DIAL.cy} r={ring.r} />
-						<text x={DIAL.cx} y={DIAL.cy + ring.r + 14}>{ring.label}</text>
+				<defs>
+					<radialGradient id="hubGlow">
+						<stop offset="0%" stop-color="rgba(188, 214, 255, 0.5)" />
+						<stop offset="55%" stop-color="rgba(120, 160, 240, 0.14)" />
+						<stop offset="100%" stop-color="rgba(120, 160, 240, 0)" />
+					</radialGradient>
+				</defs>
+
+				<g class="stars">
+					{stars.map((s) => <circle cx={s.cx} cy={s.cy} r={s.r} opacity={s.o} />)}
+				</g>
+
+				{/* `hidden` is an HTML attribute and does nothing inside SVG, so the
+				    inactive dials are turned off with a class the stylesheet owns. */}
+				{dials.map((dial, i) => (
+					<g class:list={['rings', { off: i !== 0 }]} data-scale={dial.id}>
+						{/* A faint ring per factor of ten, labelled downward. */}
+						{dial.rings.map((ring) => (
+							<g class="decade">
+								<circle cx={DIAL.cx} cy={DIAL.cy} r={ring.r} />
+								<text x={DIAL.cx} y={DIAL.cy + ring.r + 15}>{ring.label}</text>
+							</g>
+						))}
+						{/* Landmarks to read the round against, labelled upward. */}
+						{dial.anchors.map((a) => (
+							<g class:list={['landmark', { major: a.major }]}>
+								<circle cx={DIAL.cx} cy={DIAL.cy} r={a.r} />
+								<text x={DIAL.cx} y={DIAL.cy - a.r - 9}>{a.label}</text>
+							</g>
+						))}
 					</g>
 				))}
 
-				<!-- Landmarks people already have a feel for, labelled upward. -->
-				{landmarks.map((a) => (
-					<g class:list={['landmark', { major: a.major }]}>
-						<circle cx={DIAL.cx} cy={DIAL.cy} r={a.r} />
-						<text x={DIAL.cx} y={DIAL.cy - a.r - 8}>{a.label}</text>
-					</g>
-				))}
-
-				{spokes.map((t) => (
-					<line
-						class="spoke"
-						x1={DIAL.cx + Math.cos(t) * DIAL.inner}
-						y1={DIAL.cy + Math.sin(t) * DIAL.inner}
-						x2={DIAL.cx + Math.cos(t) * DIAL.outer}
-						y2={DIAL.cy + Math.sin(t) * DIAL.outer}
-					/>
-				))}
-
-				<!-- The primary, named per round: Earth, the Sun, Jupiter. -->
-				<circle class="hub" cx={DIAL.cx} cy={DIAL.cy} r={DIAL.inner - 18} />
-				<text class="hub-label" id="hub-label" x={DIAL.cx} y={DIAL.cy + 4}>—</text>
+				<!-- The primary, named per round: Earth, Saturn, the Sun. -->
+				<circle class="hub-glow" cx={DIAL.cx} cy={DIAL.cy} r={DIAL.inner + 26} />
+				<circle class="hub" cx={DIAL.cx} cy={DIAL.cy} r={DIAL.inner - 16} />
+				<text class="hub-label" id="hub-label" x={DIAL.cx} y={DIAL.cy + 5}>—</text>
 
 				<!-- Revealed after a guess is locked in. -->
-				<circle class="answer" id="answer" cx={DIAL.cx} cy={DIAL.cy} r="0" hidden />
+				<circle class="answer off" id="answer" cx={DIAL.cx} cy={DIAL.cy} r="0" />
 
 				<!-- The guess. Angle is decoration; only the radius is read. -->
 				<circle class="guess-ring" id="guess-ring" cx={DIAL.cx} cy={DIAL.cy} r={DIAL.inner} />
@@ -64,11 +93,12 @@ const spokes = Array.from({ length: 12 }, (_, i) => (i * Math.PI) / 6)
 					aria-label="Orbital distance"
 					aria-valuemin="0"
 					aria-valuemax="1000"
-					aria-valuenow="0"
-					aria-valuetext="1,000 km"
+					aria-valuenow="500"
+					aria-valuetext="—"
 				>
 					<circle class="handle-hit" cx={DIAL.cx + DIAL.inner} cy={DIAL.cy} r="34" />
-					<circle class="handle" cx={DIAL.cx + DIAL.inner} cy={DIAL.cy} r="13" />
+					<circle class="handle-halo" cx={DIAL.cx + DIAL.inner} cy={DIAL.cy} r="22" />
+					<circle class="handle" cx={DIAL.cx + DIAL.inner} cy={DIAL.cy} r="12" />
 				</g>
 			</svg>
 			<p class="tag hint">Drag the marker, or use the arrow keys. Only the distance counts.</p>
@@ -79,9 +109,19 @@ const spokes = Array.from({ length: 12 }, (_, i) => (i * Math.PI) / 6)
 			<h2 id="subject">—</h2>
 			<p class="primary" id="primary">—</p>
 
+			<!-- Which of the three dials this round is asked on. -->
+			<ul class="dials" id="dials">
+				{dials.map((dial) => (
+					<li data-scale={dial.id}>
+						<b>{dial.name}</b>
+						<span class="tag">{dial.span}</span>
+					</li>
+				))}
+			</ul>
+
 			<div class="row">
 				<span class="tag">your guess</span>
-				<b id="readout">1,000 km</b>
+				<b id="readout">—</b>
 			</div>
 
 			<div id="verdict" hidden>
@@ -119,7 +159,7 @@ const spokes = Array.from({ length: 12 }, (_, i) => (i * Math.PI) / 6)
 <style>
 	main {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) 320px;
+		grid-template-columns: minmax(0, 1fr) 330px;
 		grid-template-areas: 'top top' 'stage panel';
 		gap: 16px;
 		align-items: start;
@@ -136,7 +176,7 @@ const spokes = Array.from({ length: 12 }, (_, i) => (i * Math.PI) / 6)
 		gap: 16px;
 	}
 
-	h1 { font-size: 34px; line-height: 1; letter-spacing: 0.06em; }
+	h1 { font-size: 34px; line-height: 1; letter-spacing: 0.08em; }
 	.rule { margin: 0; color: var(--muted); }
 
 	.stage { grid-area: stage; }
@@ -144,14 +184,17 @@ const spokes = Array.from({ length: 12 }, (_, i) => (i * Math.PI) / 6)
 	#dial {
 		display: block;
 		width: 100%;
-		max-height: 72vh;
+		max-height: 74vh;
 		touch-action: none;
 		cursor: crosshair;
 	}
 
-	.decade circle, .landmark circle, .answer, .guess-ring {
-		fill: none;
-	}
+	.stars circle { fill: var(--star); }
+
+	/* SVG has no `hidden`, so this is how anything in the dial goes away. */
+	.off { display: none; }
+
+	.decade circle, .landmark circle, .answer, .guess-ring { fill: none; }
 
 	.decade circle { stroke: var(--line); stroke-width: 1.5; }
 	.decade text {
@@ -161,8 +204,8 @@ const spokes = Array.from({ length: 12 }, (_, i) => (i * Math.PI) / 6)
 		text-anchor: middle;
 	}
 
-	.landmark circle { stroke: var(--line-strong); stroke-width: 1.5; stroke-dasharray: 6 7; }
-	.landmark.major circle { stroke: rgba(120, 179, 255, 0.5); stroke-dasharray: none; }
+	.landmark circle { stroke: var(--line-strong); stroke-width: 1.5; stroke-dasharray: 5 8; }
+	.landmark.major circle { stroke: rgba(190, 212, 255, 0.45); stroke-dasharray: none; }
 	.landmark text {
 		fill: var(--muted);
 		font-size: 12px;
@@ -171,23 +214,23 @@ const spokes = Array.from({ length: 12 }, (_, i) => (i * Math.PI) / 6)
 		text-anchor: middle;
 	}
 
-	.spoke { stroke: var(--line); stroke-width: 1; }
-
-	.hub { fill: var(--surface-lt); stroke: var(--line-strong); }
+	.hub-glow { fill: url(#hubGlow); }
+	.hub { fill: #080d18; stroke: rgba(190, 212, 255, 0.35); }
 	.hub-label {
-		fill: var(--cyan-soft);
+		fill: var(--hub);
 		font-size: 15px;
 		letter-spacing: 0.1em;
 		text-transform: uppercase;
 		text-anchor: middle;
 	}
 
-	.guess-ring { stroke: var(--cyan); stroke-width: 2; stroke-dasharray: 3 9; opacity: 0.8; }
-	.arm { stroke: var(--cyan); stroke-width: 1.5; opacity: 0.5; }
-	.handle { fill: var(--cyan); stroke: var(--bg); stroke-width: 3; }
+	.guess-ring { stroke: var(--amber); stroke-width: 2; stroke-dasharray: 3 9; opacity: 0.85; }
+	.arm { stroke: var(--amber); stroke-width: 1.5; opacity: 0.4; }
+	.handle { fill: var(--amber); }
+	.handle-halo { fill: rgba(255, 193, 77, 0.16); }
 	.handle-hit { fill: transparent; }
 	#handle { cursor: grab; }
-	#handle:focus-visible .handle { fill: var(--white); }
+	#handle:focus-visible .handle-halo { fill: rgba(255, 193, 77, 0.4); }
 
 	.answer { stroke: var(--green); stroke-width: 2.5; }
 
@@ -195,7 +238,20 @@ const spokes = Array.from({ length: 12 }, (_, i) => (i * Math.PI) / 6)
 
 	.panel { grid-area: panel; position: sticky; top: 16px; }
 	h2 { font-size: 26px; line-height: 1.1; margin: 6px 0 2px; }
-	.primary { margin: 0 0 14px; color: var(--muted); }
+	.primary { margin: 0 0 12px; color: var(--muted); }
+
+	/* The three dials, with the round's own one lit. */
+	.dials { list-style: none; margin: 0 0 14px; padding: 0; }
+	.dials li {
+		display: flex;
+		flex-direction: column;
+		border-left: 2px solid var(--line);
+		padding: 3px 0 3px 10px;
+		color: var(--faint);
+	}
+	.dials li b { font-weight: 500; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+	.dials li.is-on { border-left-color: var(--amber); color: var(--white); }
+	.dials li.is-on .tag { color: var(--muted); }
 
 	.row {
 		display: flex;
@@ -207,7 +263,7 @@ const spokes = Array.from({ length: 12 }, (_, i) => (i * Math.PI) / 6)
 	}
 	.row b { font-weight: 500; font-variant-numeric: tabular-nums; }
 
-	.note { color: var(--cyan-soft); border-left: 2px solid var(--line-strong); padding-left: 10px; margin: 12px 0; }
+	.note { color: var(--hub); border-left: 2px solid var(--line-strong); padding-left: 10px; margin: 12px 0; }
 
 	.points, .total { display: flex; align-items: baseline; gap: 10px; margin: 10px 0 0; }
 	.points b, .total b { font-family: var(--display); font-size: 40px; line-height: 1; }
@@ -218,14 +274,15 @@ const spokes = Array.from({ length: 12 }, (_, i) => (i * Math.PI) / 6)
 
 	.action {
 		flex: 1;
-		border: 1px solid var(--cyan);
-		color: var(--cyan);
+		border: 1px solid var(--amber);
+		color: var(--amber);
+		border-radius: 3px;
 		padding: 10px 12px;
 		letter-spacing: 0.14em;
 		text-transform: uppercase;
 		font-size: 11px;
 	}
-	.action:hover { background: var(--surface-lt); }
+	.action:hover { background: rgba(255, 193, 77, 0.12); }
 	.action[disabled] { opacity: 0.4; cursor: default; border-color: var(--faint); color: var(--faint); }
 
 	@media (max-width: 820px) {

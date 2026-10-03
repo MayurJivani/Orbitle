@@ -1,9 +1,9 @@
 # How Orbit works
 
 Orbit asks one question five times a day: how far out does this thing orbit?
-You drag a marker on a radial dial, the dial is logarithmic, and the score is
-about factors of ten rather than kilometres. This document covers the decisions
-that are not obvious from the diff.
+You drag a marker on a radial dial, there are three dials and each is
+logarithmic, and the score is about factors of ten rather than kilometres. This
+document covers the decisions that are not obvious from the diff.
 
 ## The shape: the relay shape, minus the relay
 
@@ -24,26 +24,56 @@ no rate limiter here. The day that changes is the day scores are compared across
 people rather than across days: that needs a relay, and the shape is already
 written down in Noggin and Patina to copy from.
 
-## Why the dial is logarithmic
+## Why there are three dials, and why each is logarithmic
 
 The catalogue spans the Lunar Reconnaissance Orbiter at 1,787 km from the Moon's
-centre to Voyager 1 at 167 AU, which is twenty-five billion km. That is seven
-and a half factors of ten. On a linear dial every satellite, every moon and
-every inner planet would sit in the same pixel at the centre, and the game would
-be "is it Voyager, yes or no".
+centre to Voyager 1 at 167 AU, which is twenty-five billion km: seven and a half
+factors of ten. On one linear dial every satellite, every moon and every inner
+planet sits in the same pixel at the centre, and the game becomes "is it
+Voyager, yes or no". A single log dial fixes that but is still seven and a half
+decades wide, which makes every ring in the inner half unreadable.
 
-So the radius is `log10`, mapped over a fixed window of 1,000 km to 200 AU. The
-window is deliberately a little wider than the catalogue at both ends: a target
-sitting exactly on a stop would be a free answer, since the stop is the one ring
-a player can find without knowing anything. `tests/orbit.test.js` asserts that
-every entry lands strictly inside it, so adding an entry that breaks the rule
-fails the test rather than quietly making a round trivial.
+So there are three, each two or three decades wide, and a round is asked on
+whichever one its answer lives on:
 
-Scoring follows the same logic: `100 - 40 * |log10(guess) - log10(actual)|`,
-floored at zero. A factor of ten out costs 40, a factor of two costs about 12,
-and the absolute kilometre error is irrelevant. Being 400 km out matters
-enormously for the ISS and not at all for Jupiter, and a score that treats those
-the same would be scoring arithmetic rather than knowledge.
+| Dial | Range | Read against |
+| :--- | :--- | :--- |
+| Near Earth | 1,500 km to 120,000 km | Earth's surface, GPS, geostationary |
+| Earth system | 100,000 km to 6 million km | the Moon, Webb at L2, the Moon x10 |
+| Solar system | 0.2 AU to 250 AU | Earth's orbit, Jupiter, Neptune, Voyager 1 |
+
+The first two are deliberately Earth-referenced whatever the round is about. A
+round on Phobos puts Mars at the hub and Earth's landmark rings around it, so
+the answer you walk away with is "Phobos orbits Mars between geostationary and
+GPS". That comparison is the point; a dial labelled in Mars radii would be
+precise and teach nobody anything.
+
+`scaleFor(km)` returns the first dial whose range contains a distance. The
+ranges do not overlap anywhere the catalogue sits, so no entry needs a stored
+hint that could drift away from its distance, and the tests assert both halves
+of that: every entry lands on exactly one dial, and no entry falls in a gap
+between two.
+
+Each range is also a little wider than the entries on it at both ends. An answer
+sitting exactly on a stop would be a free guess, since the stop is the one ring
+a player can find without knowing anything.
+
+## Scoring on a share of the dial
+
+`100 - 100 * |t_guess - t_actual|`, floored at zero, where `t` is the position
+along the round's own dial. In plain terms: a point for every 1% of the dial you
+miss by.
+
+The obvious alternative, a flat penalty per factor of ten, was the first version
+and is wrong here. Forty points per decade is a fair price on the solar dial,
+which is three decades wide, and nearly free on Near Earth, which is under two:
+the same 40 points would cover most of the whole dial. Five rounds spread across
+three dials have to add up to one number, so the price of a miss has to be
+denominated in the dial it happened on.
+
+What this keeps from the per-decade version is the thing that matters: the
+measure is logarithmic, so the absolute kilometre error is irrelevant. Being
+400 km out matters enormously for the ISS and not at all for Jupiter.
 
 ## Distance from what, exactly
 
@@ -70,24 +100,43 @@ Two consequences worth knowing:
 ## Where the rules live
 
 Everything the game knows is in `shared/orbit.js`, with no DOM and no clock of
-its own: the scale, the scoring, the seeded daily pick, the formatting and the
-dial's geometry. `src/pages/index.astro` renders the rings from that geometry at
-build time, `src/scripts/client.js` only moves the marker and reveals answers,
-and `tests/orbit.test.js` tests the module directly. One source for the rings
-and the pointer maths means the ring a player aims at is the ring the score is
-computed from, which a second copy of the constants would eventually break.
+its own: the three scales, the scoring, the seeded daily pick, the formatting
+and the dial's geometry. `src/pages/index.astro` renders all three sets of rings
+from that geometry at build time, `src/scripts/client.js` only shows the round's
+own set and moves the marker, and `tests/orbit.test.js` tests the module
+directly. One source for the rings and the pointer maths means the ring a player
+aims at is the ring the score is computed from, which a second copy of the
+constants would eventually break.
 
-Two things in the client that are less obvious than they look:
+Three things in the client that are less obvious than they look:
 
 - Pointer position comes from the SVG's own `getScreenCTM()` rather than from
   arithmetic on the bounding rect. The element's box is not square once
   `max-height` clips it on a wide screen, and the viewBox letterboxes inside it,
   so a hand-rolled conversion aims at the wrong ring. That was a real bug, found
   by aiming at the Moon's ring and reading back 87 million km.
+- Anything inside the dial is shown and hidden with a class, never the `hidden`
+  attribute. `hidden` is HTML-only: setting it on an SVG group parses fine,
+  reads back fine, and does nothing at all. That was the second real bug, and it
+  had all three dials drawing on top of each other while the code that set it
+  reported success.
 - The dial is a `role="slider"` with keyboard handling, not drag-only. Arrows
   move a fifth of a factor of ten, shift-arrow or page up/down a whole one, home
   and end hit the stops, and enter locks the guess in. A game whose only input
   is a drag is a game some people cannot play.
+
+## The look
+
+Near-black, two cold nebula washes and a starfield, rather than the studio's
+blueprint theme (the graph-paper grid and drafting-table plates that Patina
+uses). The subject here is the sky, not a plan of it, and a grid behind a dial
+of orbits reads as a second set of rings competing with the real ones.
+
+The stars are 220 SVG circles generated in the page's frontmatter from the same
+seeded PRNG the daily pick uses, with `sqrt(random())` for the radius so they
+scatter evenly over the disc instead of clumping at the centre. Seeded means
+every build puts them in the same place, and generating them at build time means
+no script, no layout shift and nothing to recompute on resize.
 
 ## The catalogue
 
