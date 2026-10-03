@@ -1,0 +1,239 @@
+---
+import Layout from '../layouts/Layout.astro'
+import { ANCHORS, DIAL, ROUNDS_PER_DAY, decades, formatKm, pxFromKm } from '../../shared/orbit.js'
+
+// The rings never change, so they are drawn once at build time. The client only
+// ever moves the marker and reveals the answer.
+const rings = decades().map((km) => ({ r: pxFromKm(km), label: formatKm(km) }))
+const landmarks = ANCHORS.map((a) => ({ ...a, r: pxFromKm(a.km) }))
+const spokes = Array.from({ length: 12 }, (_, i) => (i * Math.PI) / 6)
+---
+
+<Layout title="Orbit: where does it orbit?">
+	<main>
+		<header class="plate top">
+			<div>
+				<h1>Orbit</h1>
+				<p class="tag" id="day">loading</p>
+			</div>
+			<p class="rule">Put the thing on the ring it actually orbits at.</p>
+		</header>
+
+		<section class="stage">
+			<svg id="dial" viewBox="0 0 1000 1000" role="presentation">
+				<!-- Faint ring per factor of ten, labelled downward. -->
+				{rings.map((ring) => (
+					<g class="decade">
+						<circle cx={DIAL.cx} cy={DIAL.cy} r={ring.r} />
+						<text x={DIAL.cx} y={DIAL.cy + ring.r + 14}>{ring.label}</text>
+					</g>
+				))}
+
+				<!-- Landmarks people already have a feel for, labelled upward. -->
+				{landmarks.map((a) => (
+					<g class:list={['landmark', { major: a.major }]}>
+						<circle cx={DIAL.cx} cy={DIAL.cy} r={a.r} />
+						<text x={DIAL.cx} y={DIAL.cy - a.r - 8}>{a.label}</text>
+					</g>
+				))}
+
+				{spokes.map((t) => (
+					<line
+						class="spoke"
+						x1={DIAL.cx + Math.cos(t) * DIAL.inner}
+						y1={DIAL.cy + Math.sin(t) * DIAL.inner}
+						x2={DIAL.cx + Math.cos(t) * DIAL.outer}
+						y2={DIAL.cy + Math.sin(t) * DIAL.outer}
+					/>
+				))}
+
+				<!-- The primary, named per round: Earth, the Sun, Jupiter. -->
+				<circle class="hub" cx={DIAL.cx} cy={DIAL.cy} r={DIAL.inner - 18} />
+				<text class="hub-label" id="hub-label" x={DIAL.cx} y={DIAL.cy + 4}>—</text>
+
+				<!-- Revealed after a guess is locked in. -->
+				<circle class="answer" id="answer" cx={DIAL.cx} cy={DIAL.cy} r="0" hidden />
+
+				<!-- The guess. Angle is decoration; only the radius is read. -->
+				<circle class="guess-ring" id="guess-ring" cx={DIAL.cx} cy={DIAL.cy} r={DIAL.inner} />
+				<line class="arm" id="arm" x1={DIAL.cx} y1={DIAL.cy} x2={DIAL.cx + DIAL.inner} y2={DIAL.cy} />
+				<g
+					id="handle"
+					role="slider"
+					tabindex="0"
+					aria-label="Orbital distance"
+					aria-valuemin="0"
+					aria-valuemax="1000"
+					aria-valuenow="0"
+					aria-valuetext="1,000 km"
+				>
+					<circle class="handle-hit" cx={DIAL.cx + DIAL.inner} cy={DIAL.cy} r="34" />
+					<circle class="handle" cx={DIAL.cx + DIAL.inner} cy={DIAL.cy} r="13" />
+				</g>
+			</svg>
+			<p class="tag hint">Drag the marker, or use the arrow keys. Only the distance counts.</p>
+		</section>
+
+		<aside class="plate panel">
+			<p class="tag" id="round">round 1 of {ROUNDS_PER_DAY}</p>
+			<h2 id="subject">—</h2>
+			<p class="primary" id="primary">—</p>
+
+			<div class="row">
+				<span class="tag">your guess</span>
+				<b id="readout">1,000 km</b>
+			</div>
+
+			<div id="verdict" hidden>
+				<div class="row">
+					<span class="tag">actual</span>
+					<b id="actual">—</b>
+				</div>
+				<div class="row">
+					<span class="tag">out by</span>
+					<b id="delta">—</b>
+				</div>
+				<p class="note" id="note"></p>
+				<p class="points"><b id="points">0</b><span class="tag" id="grade"></span></p>
+			</div>
+
+			<div id="summary" hidden>
+				<p class="total"><b id="total">0</b><span class="tag">out of {ROUNDS_PER_DAY * 100}</span></p>
+				<p class="runs" id="runs"></p>
+				<p class="tag" id="tomorrow">A new five tomorrow.</p>
+			</div>
+
+			<div class="actions">
+				<button class="action" id="place">Place it</button>
+				<button class="action" id="next" hidden>Next</button>
+				<button class="action" id="share" hidden>Copy result</button>
+			</div>
+		</aside>
+	</main>
+</Layout>
+
+<script>
+	import '../scripts/client.js'
+</script>
+
+<style>
+	main {
+		display: grid;
+		grid-template-columns: minmax(0, 1fr) 320px;
+		grid-template-areas: 'top top' 'stage panel';
+		gap: 16px;
+		align-items: start;
+		max-width: 1100px;
+		margin: 0 auto;
+		padding: 16px;
+	}
+
+	.top {
+		grid-area: top;
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 16px;
+	}
+
+	h1 { font-size: 34px; line-height: 1; letter-spacing: 0.06em; }
+	.rule { margin: 0; color: var(--muted); }
+
+	.stage { grid-area: stage; }
+
+	#dial {
+		display: block;
+		width: 100%;
+		max-height: 72vh;
+		touch-action: none;
+		cursor: crosshair;
+	}
+
+	.decade circle, .landmark circle, .answer, .guess-ring {
+		fill: none;
+	}
+
+	.decade circle { stroke: var(--line); stroke-width: 1.5; }
+	.decade text {
+		fill: var(--faint);
+		font-size: 11px;
+		letter-spacing: 0.1em;
+		text-anchor: middle;
+	}
+
+	.landmark circle { stroke: var(--line-strong); stroke-width: 1.5; stroke-dasharray: 6 7; }
+	.landmark.major circle { stroke: rgba(120, 179, 255, 0.5); stroke-dasharray: none; }
+	.landmark text {
+		fill: var(--muted);
+		font-size: 12px;
+		letter-spacing: 0.08em;
+		text-transform: uppercase;
+		text-anchor: middle;
+	}
+
+	.spoke { stroke: var(--line); stroke-width: 1; }
+
+	.hub { fill: var(--surface-lt); stroke: var(--line-strong); }
+	.hub-label {
+		fill: var(--cyan-soft);
+		font-size: 15px;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		text-anchor: middle;
+	}
+
+	.guess-ring { stroke: var(--cyan); stroke-width: 2; stroke-dasharray: 3 9; opacity: 0.8; }
+	.arm { stroke: var(--cyan); stroke-width: 1.5; opacity: 0.5; }
+	.handle { fill: var(--cyan); stroke: var(--bg); stroke-width: 3; }
+	.handle-hit { fill: transparent; }
+	#handle { cursor: grab; }
+	#handle:focus-visible .handle { fill: var(--white); }
+
+	.answer { stroke: var(--green); stroke-width: 2.5; }
+
+	.hint { margin: 4px 0 0; text-align: center; }
+
+	.panel { grid-area: panel; position: sticky; top: 16px; }
+	h2 { font-size: 26px; line-height: 1.1; margin: 6px 0 2px; }
+	.primary { margin: 0 0 14px; color: var(--muted); }
+
+	.row {
+		display: flex;
+		align-items: baseline;
+		justify-content: space-between;
+		gap: 10px;
+		border-top: 1px solid var(--line);
+		padding: 7px 0;
+	}
+	.row b { font-weight: 500; font-variant-numeric: tabular-nums; }
+
+	.note { color: var(--cyan-soft); border-left: 2px solid var(--line-strong); padding-left: 10px; margin: 12px 0; }
+
+	.points, .total { display: flex; align-items: baseline; gap: 10px; margin: 10px 0 0; }
+	.points b, .total b { font-family: var(--display); font-size: 40px; line-height: 1; }
+
+	.runs { font-size: 20px; letter-spacing: 0.1em; margin: 10px 0 2px; }
+
+	.actions { display: flex; gap: 8px; margin-top: 16px; }
+
+	.action {
+		flex: 1;
+		border: 1px solid var(--cyan);
+		color: var(--cyan);
+		padding: 10px 12px;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		font-size: 11px;
+	}
+	.action:hover { background: var(--surface-lt); }
+	.action[disabled] { opacity: 0.4; cursor: default; border-color: var(--faint); color: var(--faint); }
+
+	@media (max-width: 820px) {
+		main {
+			grid-template-columns: minmax(0, 1fr);
+			grid-template-areas: 'top' 'stage' 'panel';
+		}
+		.panel { position: static; }
+		#dial { max-height: none; }
+	}
+</style>
