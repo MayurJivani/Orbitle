@@ -1,9 +1,12 @@
 
-# orbitle.futile.studio, with the old name kept alive beside it rather than
-# redirected: the ingress for the new hostname has to be added in the Cloudflare
-# dashboard, and until it is, orbit.futile.studio is the only route that works.
-# Collapse this to a redir once the new one is confirmed live.
-http://orbitle.futile.studio, http://orbit.futile.studio {
+# orbitle.futile.studio
+#
+# The pre-rename orbit.futile.studio was listed here as well, to keep that link
+# alive across the rename. Its DNS record was moved to the new name rather than
+# duplicated, so the old hostname no longer resolves and listing it was dead
+# config. install.sh strips a block under either name, so re-running it replaces
+# the two-hostname version with this one.
+http://orbitle.futile.studio {
 	root * /opt/apps/Orbitle/dist
 	encode zstd gzip
 

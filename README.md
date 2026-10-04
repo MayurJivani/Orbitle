@@ -84,7 +84,6 @@ sudo sh deploy/install.sh   # once, as root: app directory and the Caddy block
 deploy/deploy.sh            # every time after that, from a dev box, not Jinx
 ```
 
-The tunnel on that box is token-managed, so `orbitle.futile.studio` also needs
-an ingress pointing at `http://localhost:80` in the Cloudflare dashboard. The
-site block answers to the old `orbit.futile.studio` as well, so that link keeps
-working until the new one is confirmed live.
+The tunnel on that box is token-managed, so the hostname's ingress points at
+`http://localhost:80` in the Cloudflare dashboard, which is the one part of the
+route that cannot be set from the box.
