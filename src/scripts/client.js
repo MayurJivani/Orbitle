@@ -7,6 +7,7 @@
 import {
 	DIAL,
 	FRAMES,
+	MODES,
 	QUESTIONS,
 	ROUNDS_PER_DAY,
 	ZOOMS,
@@ -20,10 +21,11 @@ import {
 	fromT,
 	fromWindow,
 	grade,
+	landmarkRings,
+	modeById,
 	pxFromT,
 	ratio,
 	score,
-	supports,
 	tFromPx,
 	toT,
 	toWindow,
@@ -69,14 +71,18 @@ const el = {
 	zoomOut: $('zoom-out'),
 	zoomLevel: $('zoom-level'),
 	window: $('window'),
+	modeNote: $('mode-note'),
 }
+const modeButtons = $('modes').querySelectorAll('.level')
 
 const key = dayKey()
 const rounds = dealDaily(OBJECTS, key)
 const store = `orbitle:${key}`
 
+const saved = load()
 /** The day's locked-in answers, one value per round in that round's own unit. */
-let answers = load()
+let answers = saved.answers
+let mode = saved.mode
 let index = Math.min(answers.length, rounds.length - 1)
 let round = rounds[index]
 let dialSpec = dialOf(round)
@@ -85,25 +91,37 @@ let angle = -Math.PI / 4
 let t = 0.5
 let revealed = false
 
-function dialOf(r) {
-	return dialFor(r.question, frameFor(r.object.km), OBJECTS)
+/**
+ * Hard plays on the question's whole range, so nothing about the dial says
+ * whether the answer is a satellite or a Kuiper belt object before you place
+ * it. Easy and Medium play on the round's own frame.
+ */
+function dialOf(r, m = mode) {
+	return dialFor(r.question, m.wholeRange ? null : frameFor(r.object.km), OBJECTS)
 }
 
 function load() {
+	const fallback = { answers: [], mode: modeById(localStorage.getItem('orbitle:mode')) }
 	try {
-		const saved = JSON.parse(localStorage.getItem(store) ?? '[]')
+		const raw = JSON.parse(localStorage.getItem(store) ?? 'null')
 		// Anything that is not a list of usable numbers is treated as no progress
-		// rather than trusted: it is one day of play, not worth salvaging.
-		if (!Array.isArray(saved)) return []
-		return saved.filter((n) => Number.isFinite(n) && n > 0).slice(0, rounds.length)
+		// rather than trusted: it is one day of play, not worth salvaging. The
+		// mode travels with the answers, because it is what they were scored on.
+		const list = Array.isArray(raw) ? raw : raw?.answers
+		if (!Array.isArray(list)) return fallback
+		return {
+			answers: list.filter((n) => Number.isFinite(n) && n > 0).slice(0, rounds.length),
+			mode: modeById(raw?.mode ?? fallback.mode.id),
+		}
 	} catch {
-		return []
+		return fallback
 	}
 }
 
 function save() {
 	try {
-		localStorage.setItem(store, JSON.stringify(answers))
+		localStorage.setItem(store, JSON.stringify({ mode: mode.id, answers }))
+		localStorage.setItem('orbitle:mode', mode.id)
 	} catch {
 		// Private browsing, or a full quota. The game still plays, it just will
 		// not survive a reload, and that is not worth an error message for.
@@ -146,28 +164,32 @@ function ring(cls, r, label, labelAbove) {
  */
 function drawRings() {
 	ringLayer.replaceChildren()
+	// A label is dropped rather than drawn over its neighbour. Two overlapping
+	// numbers read as neither of them.
+	const placed = { below: [], above: [] }
+	const clear = (r, side) => {
+		if (placed[side].some((at) => Math.abs(at - r) < 22)) return false
+		placed[side].push(r)
+		return true
+	}
 	const frame = frameFor(round.object.km)
 	const from = fromT(view.from, dialSpec)
 	const to = fromT(view.to, dialSpec)
 
 	for (const v of ringValues(from, to)) {
-		ring('decade', pxFromT(toWindow(toT(v, dialSpec), view)), round.question.format(v), false)
+		const r = pxFromT(toWindow(toT(v, dialSpec), view))
+		ring('decade', r, clear(r, 'below') ? round.question.format(v) : null, false)
 	}
 
-	// Landmarks are catalogue entries that double as rings, so their value comes
-	// from the same place the answers do and cannot disagree with them.
-	const landmarks = OBJECTS.filter(
-		(o) => o.ring && frameFor(o.km) === frame && supports(round.question, o),
-	).map((o) => ({ label: o.ring, value: round.question.valueOf(o) }))
-
-	// Earth's surface is a ring and not an orbit, so only one question can use it.
-	if (frame.surface && round.question.id === 'distance') {
-		landmarks.push({ label: frame.surface.label, value: frame.surface.km })
-	}
-
-	for (const l of landmarks) {
-		if (l.value < from || l.value > to) continue
-		ring('landmark major', pxFromT(toWindow(toT(l.value, dialSpec), view)), l.label, true)
+	// Landmark rings, unless the mode withholds them. The round's own object is
+	// never one: a ring labelled "Neptune" on a Neptune round is the answer with
+	// a label on it.
+	if (mode.landmarks) {
+		for (const l of landmarkRings(round.question, frame, OBJECTS, round.object.id)) {
+			if (l.value < from || l.value > to) continue
+			const r = pxFromT(toWindow(toT(l.value, dialSpec), view))
+			ring('landmark', r, clear(r, 'above') ? l.label : null, true)
+		}
 	}
 
 	el.window.textContent = `showing ${round.question.format(from)} to ${round.question.format(to)}`
@@ -240,7 +262,11 @@ function renderRound() {
 	const frame = frameFor(object.km)
 
 	for (const row of questionRows) row.classList.toggle('is-on', row.dataset.question === question.id)
-	for (const row of frameRows) row.classList.toggle('is-on', row.dataset.frame === frame.id)
+	for (const row of frameRows) {
+		// Hard highlights nothing: naming the band would hand over most of the
+		// answer before a marker is placed.
+		row.classList.toggle('is-on', !mode.wholeRange && row.dataset.frame === frame.id)
+	}
 
 	el.day.textContent = `${key} · puzzle ${dayNumber(key)}`
 	el.round.textContent = `round ${index + 1} of ${ROUNDS_PER_DAY}`
@@ -264,7 +290,7 @@ function reveal() {
 	const { object, question } = round
 	const actual = question.valueOf(object)
 	const guess = answers[index]
-	const points = score(guess, actual, dialSpec)
+	const points = score(guess, actual, dialSpec, mode)
 
 	// Put the marker back where it was placed and pull back to the whole dial, so
 	// the guess ring and the answer ring are both on screen to compare. Zoomed
@@ -289,9 +315,7 @@ function reveal() {
 
 /** Each round is scored on its own dial, which is why this is not one map. */
 function run() {
-	return rounds.map((r, i) =>
-		score(answers[i], r.question.valueOf(r.object), dialFor(r.question, frameFor(r.object.km), OBJECTS)),
-	)
+	return rounds.map((r, i) => score(answers[i], r.question.valueOf(r.object), dialOf(r), mode))
 }
 
 function finish() {
@@ -307,7 +331,7 @@ function finish() {
 function shareText() {
 	const points = run()
 	return [
-		`Orbitle ${dayNumber(key)}: ${points.reduce((a, b) => a + b, 0)}/${ROUNDS_PER_DAY * 100}`,
+		`Orbitle ${dayNumber(key)} (${mode.name}): ${points.reduce((a, b) => a + b, 0)}/${ROUNDS_PER_DAY * 100}`,
 		points.map((p) => grade(p).glyph).join(''),
 		// One letter per round, so a shared result says which questions came up.
 		rounds.map((r) => r.question.id[0].toUpperCase()).join(''),
@@ -321,6 +345,7 @@ el.place.addEventListener('click', () => {
 	if (revealed) return
 	answers[index] = guessValue()
 	save()
+	renderMode()
 	reveal()
 	if (answers.length === rounds.length) finish()
 })
@@ -344,6 +369,27 @@ el.share.addEventListener('click', async () => {
 		el.share.textContent = 'Select and copy'
 	}
 })
+
+function renderMode() {
+	const locked = answers.length > 0
+	for (const b of modeButtons) {
+		b.classList.toggle('is-on', b.dataset.mode === mode.id)
+		// Locked after the first answer: the mode is what the earlier rounds were
+		// scored on, and changing it would silently rewrite them.
+		b.disabled = locked
+	}
+	el.modeNote.textContent = locked ? `${mode.blurb} · locked for today` : mode.blurb
+}
+
+for (const b of modeButtons) {
+	b.addEventListener('click', () => {
+		if (answers.length > 0) return
+		mode = MODES.find((m) => m.id === b.dataset.mode) ?? mode
+		save()
+		renderMode()
+		renderRound()
+	})
+}
 
 el.zoomIn.addEventListener('click', () => stepZoom(1))
 el.zoomOut.addEventListener('click', () => stepZoom(-1))
@@ -406,6 +452,7 @@ handle.addEventListener('keydown', (event) => {
 	event.preventDefault()
 })
 
+renderMode()
 renderRound()
 if (answers[index] !== undefined) {
 	// Resuming a round already answered: show it as it was left, answer and all.

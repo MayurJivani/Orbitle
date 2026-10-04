@@ -17,6 +17,9 @@ import {
 	formatRatio,
 	formatSpeed,
 	frameFor,
+	landmarkRings,
+	modeById,
+	MODES,
 	fromT,
 	fromWindow,
 	periodSeconds,
@@ -149,11 +152,71 @@ test('every window on every dial leaves something to orient by', () => {
 	}
 })
 
+test('a round never shows a landmark ring for its own answer', () => {
+	// The bug this is here for: a ring labelled "Neptune" on a round asking where
+	// Neptune orbits, which was worth a free hundred.
+	for (const q of QUESTIONS) {
+		for (const o of OBJECTS) {
+			if (!supports(q, o)) continue
+			const rings = landmarkRings(q, frameFor(o.km), OBJECTS, o.id)
+			assert.ok(!rings.some((r) => r.value === q.valueOf(o)),
+				`${o.id} is given away on its own ${q.id} round`)
+		}
+	}
+	// And a landmark is still a landmark on somebody else's round.
+	const neptune = byId('neptune')
+	const onPluto = landmarkRings(QUESTIONS[0], frameFor(neptune.km), OBJECTS, 'pluto')
+	assert.ok(onPluto.some((r) => r.label === 'Neptune'))
+})
+
+test('the three modes differ in the three ways they are meant to', () => {
+	const [easy, medium, hard] = MODES
+	const q = QUESTIONS[0]
+	const frame = frameFor(byId('neptune').km)
+	const narrow = dialFor(q, frame, OBJECTS)
+	const whole = dialFor(q, null, OBJECTS)
+
+	// The curve: the same miss costs more as the mode gets harder, and both ends
+	// stay fixed so the modes remain comparable at 0 and 100.
+	const miss = (mode, dial) => score(fromT(0.4, dial), fromT(0.6, dial), dial, mode)
+	assert.ok(miss(easy, narrow) > miss(medium, narrow))
+	assert.ok(miss(medium, narrow) > miss(hard, narrow))
+	assert.equal(miss(medium, narrow), 80)
+
+	// Landmarks: hard withholds them, the others do not.
+	assert.equal(easy.landmarks, true)
+	assert.equal(hard.landmarks, false)
+
+	// Scope: hard plays the question's whole range, which is a much wider dial.
+	assert.ok(decadesOf(whole) > decadesOf(narrow) * 3)
+	assert.ok(hard.wholeRange && !medium.wholeRange)
+
+	// An unknown or missing id falls back rather than throwing.
+	assert.equal(modeById('nonsense').id, medium.id)
+	assert.equal(modeById(undefined).id, medium.id)
+})
+
+test('the whole-range dial still holds every answer, away from its stops', () => {
+	for (const q of QUESTIONS) {
+		const d = dialFor(q, null, OBJECTS)
+		for (const o of OBJECTS) {
+			if (!supports(q, o)) continue
+			const t = toT(q.valueOf(o), d)
+			assert.ok(t > 0.01 && t < 0.99, `${o.id} sits on a stop of ${d.id}`)
+		}
+	}
+})
+
 test('scoring is 100 for exact, a point per 1% of the dial missed, never negative', () => {
+	// Medium is the default, and the default is a point per 1%.
 	for (const d of ALL_DIALS) {
 		assert.equal(score(fromT(0.5, d), fromT(0.5, d), d), 100, d.id)
 		assert.equal(score(fromT(0.25, d), fromT(0.75, d), d), 50, d.id)
 		assert.equal(score(d.min, d.max, d), 0, d.id)
+		for (const mode of MODES) {
+			assert.equal(score(fromT(0.3, d), fromT(0.3, d), d, mode), 100, `${d.id} ${mode.id}`)
+			assert.equal(score(d.min, d.max, d, mode), 0, `${d.id} ${mode.id}`)
+		}
 	}
 })
 

@@ -177,26 +177,54 @@ export const QUESTIONS = [
 
 export const ROUNDS_PER_DAY = 5
 
+/**
+ * Three difficulty modes, over the three levers the dial already has: how
+ * sharply a miss is punished, whether the landmark rings are there to read
+ * against, and how much of the sky the dial covers.
+ *
+ * Hard is the interesting one. Its dial is the question's whole range rather
+ * than the round's frame, so nothing tells you whether the answer is a
+ * satellite or a Kuiper belt object before you place it, and the frame is not
+ * highlighted either. That is eight factors of ten on one dial, which is only
+ * playable because zoom exists.
+ */
+export const MODES = [
+	{ id: 'easy', name: 'Easy', curve: 0.6, landmarks: true, wholeRange: false,
+		blurb: 'landmarks shown, gentle marking' },
+	{ id: 'medium', name: 'Medium', curve: 1, landmarks: true, wholeRange: false,
+		blurb: 'landmarks shown, a point per 1%' },
+	{ id: 'hard', name: 'Hard', curve: 1.6, landmarks: false, wholeRange: true,
+		blurb: 'no landmarks, no frame, the whole sky' },
+]
+
+export const DEFAULT_MODE = MODES[1]
+
+export function modeById(id) {
+	return MODES.find((m) => m.id === id) ?? DEFAULT_MODE
+}
+
 /** Can this object be asked this question? Escape trajectories have no period. */
 export function supports(question, o) {
 	return Number.isFinite(question.valueOf(o))
 }
 
 /**
- * The dial for one question on one frame, derived from the entries that land
- * there rather than hand-tuned fifteen times over. Padded by a factor of 1.8 at
- * both ends, because an answer sitting on a stop is a free guess: the stop is
- * the one ring a player can find without knowing anything.
+ * The dial for one question, derived from the entries on it rather than
+ * hand-tuned fifteen times over. Padded by a factor of 1.8 at both ends,
+ * because an answer sitting on a stop is a free guess: the stop is the one ring
+ * a player can find without knowing anything.
+ *
+ * A null frame means the question's whole range, which is what Hard plays on.
  */
 const PAD = 1.8
 
 export function dialFor(question, frame, objects) {
 	const values = objects
-		.filter((o) => frameFor(o.km) === frame && supports(question, o))
+		.filter((o) => (frame === null || frameFor(o.km) === frame) && supports(question, o))
 		.map((o) => question.valueOf(o))
 	if (!values.length) return null
 	return {
-		id: `${question.id}:${frame.id}`,
+		id: `${question.id}:${frame ? frame.id : 'all'}`,
 		min: Math.min(...values) / PAD,
 		max: Math.max(...values) * PAD,
 	}
@@ -222,16 +250,25 @@ export function fromT(t, dial) {
 }
 
 /**
- * Score one guess: 100, minus a point for every 1% of the dial missed, floored
- * at 0. A share of the dial rather than a flat penalty per factor of ten, so
- * five rounds on different dials add up to one comparable total: a decade is
- * most of a two-decade dial and a third of a wide one, and it should cost
- * accordingly. Always measured on the whole dial, never on a zoomed window, or
- * zooming in would quietly change the marking.
+ * Score one guess on the share of the dial it missed by. Medium is a point per
+ * 1%; the other modes bend that line with an exponent.
+ *
+ * A share of the dial rather than a flat penalty per factor of ten, so five
+ * rounds on different dials add up to one comparable total: a decade is most of
+ * a two-decade dial and a third of a wide one, and it should cost accordingly.
+ *
+ * The exponent rather than a gentler slope, because a slope that forgives has
+ * to stop short of zero: at 70 points per full dial, the worst answer possible
+ * still scored 30 and an Easy total could not drop below 150. A curve keeps
+ * both ends honest, exact is 100 and a full miss is 0 in every mode, and puts
+ * the difficulty where it belongs, in the middle of the range.
+ *
+ * Always measured on the whole dial, never on a zoomed window, or zooming in
+ * would quietly change the marking.
  */
-export function score(guess, actual, dial) {
-	const missed = Math.abs(toT(guess, dial) - toT(actual, dial))
-	return Math.max(0, Math.round(100 - 100 * missed))
+export function score(guess, actual, dial, mode = DEFAULT_MODE) {
+	const missed = Math.min(Math.abs(toT(guess, dial) - toT(actual, dial)), 1)
+	return Math.round(100 * (1 - missed) ** mode.curve)
 }
 
 /** How far out the guess was, as a plain multiple ("2.4x too close"). */
@@ -275,6 +312,27 @@ export function ringValues(from, to) {
 	const step = [1, 2, 2.5, 5, 10].find((m) => m * mag >= raw) * mag
 	for (let v = Math.ceil(from / step) * step; v <= to; v += step) out.push(v)
 	return out
+}
+
+/**
+ * The landmark rings for a round: catalogue entries that double as rings, their
+ * value taken for the question being asked, so a period dial gets the ISS at
+ * 1.5 hours without a number being typed twice.
+ *
+ * The round's own object is excluded. A ring labelled "Neptune" on a round
+ * asking where Neptune orbits is not a landmark, it is the answer with a label
+ * on it, and it was handing out free hundreds.
+ */
+export function landmarkRings(question, frame, objects, exclude) {
+	const rings = objects
+		.filter((o) => o.ring && o.id !== exclude && frameFor(o.km) === frame && supports(question, o))
+		.map((o) => ({ label: o.ring, value: question.valueOf(o) }))
+
+	// Earth's surface is a ring and not an orbit, so only one question can use it.
+	if (frame?.surface && question.id === 'distance') {
+		rings.push({ label: frame.surface.label, value: frame.surface.km })
+	}
+	return rings
 }
 
 /**

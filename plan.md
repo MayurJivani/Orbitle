@@ -48,8 +48,13 @@ Zoom narrows the dial's visible range around the marker (1x to 8x) rather than
 magnifying the drawing, which on concentric rings only ever helps the innermost
 one. Scoring is always on the whole dial, so zooming cannot change the marking.
 
-Score is a point per 1% of the dial missed, so five rounds on different dials
-add up to one comparable total. Ninety-nine entries in eighteen subject
+Easy, Medium and Hard, over three levers: how sharply a miss is punished (an
+exponent, so both ends stay pinned), whether the landmark rings are shown, and
+whether the dial covers the round's frame or the whole sky. Chosen for the day,
+locked at the first answer.
+
+Score is a point per 1% of the dial missed on Medium, curved for the others, so
+five rounds on different dials add up to one comparable total. Ninety-nine entries in eighteen subject
 categories. Space theme: near-black, nebula washes, seeded starfield. No
 backend.
 

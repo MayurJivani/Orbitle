@@ -39,16 +39,21 @@ const { title } = Astro.props
 		--bg: #03050a;
 		--surface: rgba(16, 24, 42, 0.62);
 		--surface-lt: rgba(34, 48, 78, 0.7);
-		--line: rgba(190, 212, 255, 0.1);
-		--line-strong: rgba(190, 212, 255, 0.24);
+		/* The rings and their labels are the instrument, so they are the brightest
+		   thing on the page after the marker. The first pass had them at a tenth
+		   of an alpha over near-black and the dial was unreadable: the hub glow
+		   was the only thing anybody could see. */
+		--line: rgba(198, 219, 255, 0.3);
+		--line-strong: rgba(198, 219, 255, 0.58);
 		--star: #dfe9ff;
+		--cyan-soft: #cfe0ff;
 		--white: #eaf0fb;
 		/* Both greys are set by contrast, not by taste: the small tracked-out
 		   labels are 10-11px, so they need 4.5:1, and they have to clear it
 		   against the lightest part of the nebula wash and not just the
 		   near-black ground. A darker --faint looked better and failed. */
-		--muted: #a3b0c9;
-		--faint: #808ea9;
+		--muted: #c3cfe4;
+		--faint: #a2b1cb;
 		--amber: #ffc14d;
 		--green: #5ce39b;
 		--hub: #bcd6ff;

@@ -96,6 +96,39 @@ hours without a single number being typed twice. The one exception is Earth's
 surface, which is a ring and not an orbit, so it only appears on distance
 dials.
 
+**The round's own object is never a landmark.** That was a real bug, and a bad
+one: a round asking where Neptune orbits drew a ring labelled "Neptune" at
+exactly the answer, which is not a landmark, it is the answer with a label on
+it. It was worth a free hundred to anyone who noticed. `landmarkRings` takes
+the round's object id and excludes it, and a test walks every object against
+every question to prove no answer can be read off its own dial.
+
+## Three difficulties over the levers that already existed
+
+Easy, Medium and Hard are not three code paths. They are three rows in `MODES`
+turning the dial's existing levers:
+
+- **How sharply a miss is punished.** An exponent on the share missed: 0.6, 1,
+  1.6. An exponent rather than a gentler slope, because a slope that forgives
+  has to stop short of zero. The first attempt marked Easy at 70 points per
+  full dial, which meant the worst answer physically possible still scored 30
+  and an Easy total could not drop below 150 out of 500. The curve pins both
+  ends (exact is 100, a full miss is 0, in every mode) and puts the difference
+  where it belongs, in the middle of the range.
+- **Whether the landmark rings are there.** Hard withholds them, so the only
+  thing on the dial is the bare scale.
+- **How much sky the dial covers.** Hard plays on the question's whole range
+  instead of the round's frame, and does not highlight the frame in the panel
+  either. Highlighting it would say "the answer is between 55 and 600 AU"
+  before a marker was placed, which is most of the question. That makes Hard's
+  distance dial eight factors of ten wide, and it is only playable because zoom
+  exists.
+
+The mode is a choice for the day, locked once the first answer is placed, and
+stored alongside the answers rather than beside them: a score only means
+something next to the mode it was scored under, and letting someone switch
+after round three would silently rewrite rounds one and two.
+
 ## Scoring on a share of the dial
 
 `100 - 100 * |t_guess - t_actual|`, floored at zero, where `t` is the position
@@ -189,6 +222,29 @@ Three things in the client that are less obvious than they look:
   move a fifth of a factor of ten, shift-arrow or page up/down a whole one, home
   and end hit the stops, and enter locks the guess in. A game whose only input
   is a drag is a game some people cannot play.
+
+## The look, and the bug that made it unreadable
+
+The first version of this theme was reported as unreadable: "too dark, can't
+read anything except the Sun". It was worse than dark. The ring layer is built
+by the client with `createElementNS`, so its elements never carry the scoping
+attribute Astro adds to everything in a `.astro` template, and the ring styles
+were in a scoped `<style>` block. They matched nothing. The rings were drawing
+with the SVG defaults, which is black fill and no stroke: invisible circles on a
+near-black ground, with only the hub glow and the stars (both in the template,
+both scoped correctly) actually styled.
+
+So the ring rules now live in a `<style is:global>` block, with a comment saying
+why, and the lesson generalises: anything this client creates at runtime needs
+global CSS.
+
+The brightening on top of that fix was its own pass, measured rather than
+eyeballed. Ring labels are 15px at 9.4:1 against the ground and landmark labels
+at 15.3:1, every label carries a dark outline via `paint-order: stroke` so it
+stays readable where it crosses a ring or a star, the ring strokes went from a
+tenth of an alpha to 0.3 and 0.58, and the hub glow and the starfield were both
+dimmed because they were competing with the instrument. Labels that would land
+within 22px of a neighbour are dropped rather than drawn on top of it.
 
 ## The look
 

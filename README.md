@@ -4,7 +4,7 @@
 ![Astro](https://img.shields.io/badge/Astro-7-BC52EE?style=flat-square&logo=astro&logoColor=white)
 ![Node](https://img.shields.io/badge/Node-22%2B-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white)
 ![No backend](https://img.shields.io/badge/backend-none-5eb8ff?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-20%20passing-success?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-23%20passing-success?style=flat-square)
 [![Last commit](https://img.shields.io/github/last-commit/MayurJivani/Orbitle?style=flat-square)](https://github.com/MayurJivani/Orbitle/commits/main)
 
 A daily guessing game about orbits. Five rounds a day: how far out something
@@ -45,8 +45,20 @@ little further out than our own Moon is the kind of answer worth having.
 | Outer solar system | Jupiter to the Kuiper belt |
 | Deep space | past Eris, out to Sedna |
 
-Score is 100 a round, minus a point for every 1% of the dial you miss by, so
-five rounds across different dials still add up to one comparable total.
+## Three difficulties
+
+| Mode | What changes |
+| :--- | :--- |
+| Easy | landmark rings shown, gentle marking |
+| Medium | landmark rings shown, a point per 1% of the dial missed |
+| Hard | no landmarks, no frame named, and the dial covers the whole sky |
+
+Score is 100 a round on the share of the dial you missed by, so five rounds
+across different dials still add up to one comparable total. Easy and Hard bend
+that line with an exponent rather than a gentler slope, so exact is 100 and a
+full miss is 0 whichever mode you played. The mode is a choice for the day and
+locks when you place your first answer, since it is what the earlier rounds were
+scored on.
 
 Ninety-nine things to be asked about, in eighteen categories: stations, spy
 satellites, dead missions, moons, Trojans, centaurs, Kuiper belt objects,

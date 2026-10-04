@@ -1,19 +1,20 @@
 ---
 import Layout from '../layouts/Layout.astro'
-import { DIAL, FRAMES, QUESTIONS, ROUNDS_PER_DAY, rng } from '../../shared/orbit.js'
+import { DIAL, FRAMES, MODES, QUESTIONS, ROUNDS_PER_DAY, rng } from '../../shared/orbit.js'
 
 // A fixed starfield, seeded so every build puts the stars in the same place.
 // It sits outside the dial's own layer, so zooming the rings does not zoom the
 // sky behind them.
 const rand = rng(0x5e4a11)
-const stars = Array.from({ length: 220 }, () => {
+const stars = Array.from({ length: 150 }, () => {
 	const r = Math.sqrt(rand()) * 700
 	const a = rand() * Math.PI * 2
 	return {
 		cx: DIAL.cx + Math.cos(a) * r,
 		cy: DIAL.cy + Math.sin(a) * r,
-		r: 0.6 + rand() ** 3 * 2.4,
-		o: (0.18 + rand() * 0.72).toFixed(2),
+		r: 0.5 + rand() ** 3 * 1.9,
+		// Dim: the sky is a backdrop, not part of the instrument.
+		o: (0.1 + rand() * 0.4).toFixed(2),
 	}
 })
 ---
@@ -89,6 +90,16 @@ const stars = Array.from({ length: 220 }, () => {
 		</section>
 
 		<aside class="plate panel">
+			<div class="difficulty">
+				<span class="tag">difficulty</span>
+				<div class="levels" id="modes">
+					{MODES.map((m) => (
+						<button class="level" data-mode={m.id} title={m.blurb}>{m.name}</button>
+					))}
+				</div>
+			</div>
+			<p class="tag" id="mode-note">—</p>
+
 			<p class="tag" id="round">round 1 of {ROUNDS_PER_DAY}</p>
 			<h2 id="subject">—</h2>
 			<p class="primary"><span id="primary">—</span><span class="chip" id="category"></span></p>
@@ -145,6 +156,41 @@ const stars = Array.from({ length: 220 }, () => {
 	import '../scripts/client.js'
 </script>
 
+<!-- The ring layer is drawn by the client, so its elements carry no scoping
+     attribute and these rules have to be global. Scoped, they match nothing,
+     and the dial renders as black circles with no stroke. -->
+<style is:global>
+	#rings .decade circle,
+	#rings .landmark circle { fill: none; }
+
+	/* Every label sits over rings, stars and sometimes the marker, so it carries
+	   its own dark outline. Without this the type is legible on the ground and
+	   mud everywhere else. */
+	#rings text {
+		text-anchor: middle;
+		paint-order: stroke;
+		stroke: #03050a;
+		stroke-width: 5px;
+		stroke-linejoin: round;
+	}
+
+	#rings .decade circle { stroke: var(--line); stroke-width: 2; }
+	#rings .decade text {
+		fill: var(--faint);
+		font-size: 15px;
+		letter-spacing: 0.06em;
+	}
+
+	#rings .landmark circle { stroke: var(--line-strong); stroke-width: 2.5; stroke-dasharray: 7 6; }
+	#rings .landmark text {
+		fill: var(--cyan-soft);
+		font-size: 15px;
+		font-weight: 500;
+		letter-spacing: 0.06em;
+		text-transform: uppercase;
+	}
+</style>
+
 <style>
 	main {
 		display: grid;
@@ -183,27 +229,11 @@ const stars = Array.from({ length: 220 }, () => {
 	/* SVG has no `hidden`, so this is how anything in the dial goes away. */
 	.off { display: none; }
 
-	.decade circle, .landmark circle, .answer, .guess-ring { fill: none; }
+	.answer, .guess-ring { fill: none; }
 
-	.decade circle { stroke: var(--line); stroke-width: 1.5; }
-	.decade text {
-		fill: var(--faint);
-		font-size: 11px;
-		letter-spacing: 0.1em;
-		text-anchor: middle;
-	}
-
-	.landmark circle { stroke: var(--line-strong); stroke-width: 1.5; stroke-dasharray: 5 8; }
-	.landmark.major circle { stroke: rgba(190, 212, 255, 0.45); stroke-dasharray: none; }
-	.landmark text {
-		fill: var(--muted);
-		font-size: 12px;
-		letter-spacing: 0.08em;
-		text-transform: uppercase;
-		text-anchor: middle;
-	}
-
-	.hub-glow { fill: url(#hubGlow); }
+	/* Dimmed to a hint of a body. At full strength it was the only thing on the
+	   dial anyone could see. */
+	.hub-glow { fill: url(#hubGlow); opacity: 0.45; }
 	.hub { fill: #080d18; stroke: rgba(190, 212, 255, 0.35); }
 	.hub-label {
 		fill: var(--hub);
@@ -213,15 +243,15 @@ const stars = Array.from({ length: 220 }, () => {
 		text-anchor: middle;
 	}
 
-	.guess-ring { stroke: var(--amber); stroke-width: 2; stroke-dasharray: 3 9; opacity: 0.85; }
-	.arm { stroke: var(--amber); stroke-width: 1.5; opacity: 0.4; }
+	.guess-ring { stroke: var(--amber); stroke-width: 3; stroke-dasharray: 4 8; }
+	.arm { stroke: var(--amber); stroke-width: 2; opacity: 0.55; }
 	.handle { fill: var(--amber); }
 	.handle-halo { fill: rgba(255, 193, 77, 0.16); }
 	.handle-hit { fill: transparent; }
 	#handle { cursor: grab; }
 	#handle:focus-visible .handle-halo { fill: rgba(255, 193, 77, 0.4); }
 
-	.answer { stroke: var(--green); stroke-width: 2.5; }
+	.answer { stroke: var(--green); stroke-width: 3.5; }
 
 	.under {
 		display: flex;
@@ -235,16 +265,45 @@ const stars = Array.from({ length: 220 }, () => {
 	.step {
 		border: 1px solid var(--line-strong);
 		border-radius: 3px;
-		width: 26px;
-		height: 24px;
+		width: 32px;
+		height: 28px;
+		font-size: 15px;
 		line-height: 1;
 		color: var(--white);
 	}
 	.step:hover { background: var(--surface-lt); }
 	.step[disabled] { opacity: 0.35; cursor: default; }
-	.window { margin: 0; text-align: right; }
+	.window {
+		margin: 0;
+		text-align: right;
+		font-size: 12px;
+		letter-spacing: 0.08em;
+		color: var(--white);
+	}
 
 	.hint { margin: 6px 0 0; text-align: center; }
+
+	.difficulty {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 10px;
+	}
+	.levels { display: flex; gap: 6px; }
+	.level {
+		border: 1px solid var(--line);
+		border-radius: 3px;
+		padding: 3px 9px;
+		font-size: 10px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--muted);
+	}
+	.level:hover { border-color: var(--line-strong); color: var(--white); }
+	.level.is-on { border-color: var(--amber); color: var(--amber); }
+	.level[disabled] { cursor: default; opacity: 0.55; }
+	.level[disabled]:hover { border-color: var(--line); color: var(--muted); }
+	#mode-note { margin: 4px 0 10px; }
 
 	.panel { grid-area: panel; position: sticky; top: 16px; }
 	h2 { font-size: 26px; line-height: 1.1; margin: 6px 0 2px; }
