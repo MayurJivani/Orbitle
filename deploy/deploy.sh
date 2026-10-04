@@ -15,7 +15,9 @@ set -eu
 REPO="${REPO:-https://github.com/MayurJivani/Orbitle.git}"
 BRANCH="${BRANCH:-main}"
 HOST="${HOST:-ssh.futile.studio}"
-APP=/opt/apps/Orbitle
+# Overridable so a deploy can be aimed at the pre-rename directory while the
+# root step that creates the new one is still pending.
+APP="${APP:-/opt/apps/Orbitle}"
 
 ssh "$HOST" "
 set -eu
