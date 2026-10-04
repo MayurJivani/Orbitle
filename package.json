@@ -1,8 +1,8 @@
 {
-  "name": "orbit",
+  "name": "orbitle",
   "type": "module",
   "version": "0.0.1",
-  "description": "A daily guessing game: put the thing on the ring it actually orbits at.",
+  "description": "A daily guessing game about orbits: how far out, how long, how fast.",
   "engines": {
     "node": ">=22.12.0"
   },

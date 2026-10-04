@@ -1,4 +1,4 @@
-# Orbit — "Where is this thing orbiting?"
+# Orbitle — "Where is this thing orbiting?"
 
 ## One-liner
 Place an object (satellite, planet, comet) on a simplified solar-system diagram at the orbit you think it belongs to.
@@ -31,14 +31,27 @@ Solid low-risk filler project. Good first build to validate the "drag onto a sca
 
 ## Built (V1)
 
-Three log dials instead of one, since one scale from a low lunar orbit to
-Voyager 1 is seven and a half factors of ten and makes the inner solar system a
-smudge. Near Earth (surface to geostationary) and Earth system (geostationary to
-past the Moon) are both read against Earth landmarks whatever the round is
-about; Solar system (Mercury to Voyager 1) is the third. A round uses whichever
-dial its answer lives on. Score is a point per 1% of that dial you miss by, so
-the five rounds stay comparable across dials. Space theme: near-black, nebula
-washes, seeded starfield. No backend.
+Named Orbitle. Live at orbitle.futile.studio.
+
+Three questions over one mechanic (place a marker on a log dial): how far out,
+how long one orbit takes, how fast it is going. Only the distance is curated;
+period and speed are derived from it with Kepler and nine gravitational
+parameters.
+
+Five frames by distance, because one scale from a low lunar orbit to Sedna is
+eight factors of ten and makes everything inside Jupiter a smudge. Near Earth
+and Earth system are read against Earth's own landmarks whatever the round is
+about. Three questions times five frames is fifteen dials, all derived from the
+catalogue rather than hand-tuned.
+
+Zoom narrows the dial's visible range around the marker (1x to 8x) rather than
+magnifying the drawing, which on concentric rings only ever helps the innermost
+one. Scoring is always on the whole dial, so zooming cannot change the marking.
+
+Score is a point per 1% of the dial missed, so five rounds on different dials
+add up to one comparable total. Ninety-nine entries in eighteen subject
+categories. Space theme: near-black, nebula washes, seeded starfield. No
+backend.
 
 ## Next iteration: 3D mode
 

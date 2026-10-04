@@ -1,6 +1,10 @@
 
-http://orbit.futile.studio {
-	root * /opt/apps/Orbit/dist
+# orbitle.futile.studio, with the old name kept alive beside it rather than
+# redirected: the ingress for the new hostname has to be added in the Cloudflare
+# dashboard, and until it is, orbit.futile.studio is the only route that works.
+# Collapse this to a redir once the new one is confirmed live.
+http://orbitle.futile.studio, http://orbit.futile.studio {
+	root * /opt/apps/Orbitle/dist
 	encode zstd gzip
 
 	# Astro hashes the bundle filenames, so the two halves cache differently.

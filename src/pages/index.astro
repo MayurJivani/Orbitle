@@ -1,22 +1,10 @@
 ---
 import Layout from '../layouts/Layout.astro'
-import { DIAL, ROUNDS_PER_DAY, SCALES, decades, formatKm, pxFromKm, rng } from '../../shared/orbit.js'
-
-// All three dials are drawn once at build time and the client shows whichever
-// one the round needs. Nothing about the rings depends on the player, so none of
-// this belongs in a script.
-const dials = SCALES.map((scale) => ({
-	id: scale.id,
-	name: scale.name,
-	span: scale.span,
-	from: formatKm(scale.minKm),
-	to: formatKm(scale.maxKm),
-	rings: decades(scale).map((km) => ({ r: pxFromKm(km, scale), label: formatKm(km) })),
-	anchors: scale.anchors.map((a) => ({ ...a, r: pxFromKm(a.km, scale) })),
-}))
+import { DIAL, FRAMES, QUESTIONS, ROUNDS_PER_DAY, rng } from '../../shared/orbit.js'
 
 // A fixed starfield, seeded so every build puts the stars in the same place.
-// Kept off the dial's own band so it never reads as a ring.
+// It sits outside the dial's own layer, so zooming the rings does not zoom the
+// sky behind them.
 const rand = rng(0x5e4a11)
 const stars = Array.from({ length: 220 }, () => {
 	const r = Math.sqrt(rand()) * 700
@@ -30,14 +18,14 @@ const stars = Array.from({ length: 220 }, () => {
 })
 ---
 
-<Layout title="Orbit: where does it orbit?">
+<Layout title="Orbitle: where does it orbit?">
 	<main>
 		<header class="plate top">
 			<div>
-				<h1>Orbit</h1>
+				<h1>Orbitle</h1>
 				<p class="tag" id="day">loading</p>
 			</div>
-			<p class="rule">Put the thing on the ring it actually orbits at.</p>
+			<p class="rule">Five rounds a day. Place the marker, learn the sky.</p>
 		</header>
 
 		<section class="stage">
@@ -54,26 +42,9 @@ const stars = Array.from({ length: 220 }, () => {
 					{stars.map((s) => <circle cx={s.cx} cy={s.cy} r={s.r} opacity={s.o} />)}
 				</g>
 
-				{/* `hidden` is an HTML attribute and does nothing inside SVG, so the
-				    inactive dials are turned off with a class the stylesheet owns. */}
-				{dials.map((dial, i) => (
-					<g class:list={['rings', { off: i !== 0 }]} data-scale={dial.id}>
-						{/* A faint ring per factor of ten, labelled downward. */}
-						{dial.rings.map((ring) => (
-							<g class="decade">
-								<circle cx={DIAL.cx} cy={DIAL.cy} r={ring.r} />
-								<text x={DIAL.cx} y={DIAL.cy + ring.r + 15}>{ring.label}</text>
-							</g>
-						))}
-						{/* Landmarks to read the round against, labelled upward. */}
-						{dial.anchors.map((a) => (
-							<g class:list={['landmark', { major: a.major }]}>
-								<circle cx={DIAL.cx} cy={DIAL.cy} r={a.r} />
-								<text x={DIAL.cx} y={DIAL.cy - a.r - 9}>{a.label}</text>
-							</g>
-						))}
-					</g>
-				))}
+				<!-- Rings are drawn by the client: which ones exist depends on the
+				     round's dial and on how far the player has zoomed in. -->
+				<g id="rings"></g>
 
 				<!-- The primary, named per round: Earth, Saturn, the Sun. -->
 				<circle class="hub-glow" cx={DIAL.cx} cy={DIAL.cy} r={DIAL.inner + 26} />
@@ -90,7 +61,7 @@ const stars = Array.from({ length: 220 }, () => {
 					id="handle"
 					role="slider"
 					tabindex="0"
-					aria-label="Orbital distance"
+					aria-label="Your answer"
 					aria-valuemin="0"
 					aria-valuemax="1000"
 					aria-valuenow="500"
@@ -101,26 +72,44 @@ const stars = Array.from({ length: 220 }, () => {
 					<circle class="handle" cx={DIAL.cx + DIAL.inner} cy={DIAL.cy} r="12" />
 				</g>
 			</svg>
-			<p class="tag hint">Drag the marker, or use the arrow keys. Only the distance counts.</p>
+
+			<div class="under">
+				<div class="zoom">
+					<span class="tag">zoom</span>
+					<button class="step" id="zoom-out" aria-label="Zoom out">−</button>
+					<b id="zoom-level">1x</b>
+					<button class="step" id="zoom-in" aria-label="Zoom in">+</button>
+				</div>
+				<p class="tag window" id="window">—</p>
+			</div>
+			<p class="tag hint">
+				Drag the marker or use the arrow keys. Zoom with the wheel, or + and −, to
+				spread the rings out. Only the distance from the centre counts.
+			</p>
 		</section>
 
 		<aside class="plate panel">
 			<p class="tag" id="round">round 1 of {ROUNDS_PER_DAY}</p>
 			<h2 id="subject">—</h2>
-			<p class="primary" id="primary">—</p>
+			<p class="primary"><span id="primary">—</span><span class="chip" id="category"></span></p>
 
-			<!-- Which of the three dials this round is asked on. -->
-			<ul class="dials" id="dials">
-				{dials.map((dial) => (
-					<li data-scale={dial.id}>
-						<b>{dial.name}</b>
-						<span class="tag">{dial.span}</span>
+			<p class="question" id="question">—</p>
+
+			<!-- Which of the question types and which of the frames this round uses. -->
+			<ul class="modes" id="questions">
+				{QUESTIONS.map((q) => <li data-question={q.id}>{q.name}</li>)}
+			</ul>
+			<ul class="frames" id="frames">
+				{FRAMES.map((f) => (
+					<li data-frame={f.id}>
+						<b>{f.name}</b>
+						<span class="tag">{f.span}</span>
 					</li>
 				))}
 			</ul>
 
 			<div class="row">
-				<span class="tag">your guess</span>
+				<span class="tag" id="guess-label">your answer</span>
 				<b id="readout">—</b>
 			</div>
 
@@ -159,11 +148,11 @@ const stars = Array.from({ length: 220 }, () => {
 <style>
 	main {
 		display: grid;
-		grid-template-columns: minmax(0, 1fr) 330px;
+		grid-template-columns: minmax(0, 1fr) 340px;
 		grid-template-areas: 'top top' 'stage panel';
 		gap: 16px;
 		align-items: start;
-		max-width: 1100px;
+		max-width: 1140px;
 		margin: 0 auto;
 		padding: 16px;
 	}
@@ -184,7 +173,7 @@ const stars = Array.from({ length: 220 }, () => {
 	#dial {
 		display: block;
 		width: 100%;
-		max-height: 74vh;
+		max-height: 70vh;
 		touch-action: none;
 		cursor: crosshair;
 	}
@@ -234,24 +223,72 @@ const stars = Array.from({ length: 220 }, () => {
 
 	.answer { stroke: var(--green); stroke-width: 2.5; }
 
-	.hint { margin: 4px 0 0; text-align: center; }
+	.under {
+		display: flex;
+		align-items: center;
+		justify-content: space-between;
+		gap: 12px;
+		margin-top: 6px;
+	}
+	.zoom { display: flex; align-items: center; gap: 8px; }
+	.zoom b { font-variant-numeric: tabular-nums; min-width: 24px; text-align: center; }
+	.step {
+		border: 1px solid var(--line-strong);
+		border-radius: 3px;
+		width: 26px;
+		height: 24px;
+		line-height: 1;
+		color: var(--white);
+	}
+	.step:hover { background: var(--surface-lt); }
+	.step[disabled] { opacity: 0.35; cursor: default; }
+	.window { margin: 0; text-align: right; }
+
+	.hint { margin: 6px 0 0; text-align: center; }
 
 	.panel { grid-area: panel; position: sticky; top: 16px; }
 	h2 { font-size: 26px; line-height: 1.1; margin: 6px 0 2px; }
-	.primary { margin: 0 0 12px; color: var(--muted); }
+	.primary { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: var(--muted); }
 
-	/* The three dials, with the round's own one lit. */
-	.dials { list-style: none; margin: 0 0 14px; padding: 0; }
-	.dials li {
+	.chip {
+		border: 1px solid var(--line-strong);
+		border-radius: 999px;
+		padding: 1px 8px;
+		font-size: 10px;
+		letter-spacing: 0.14em;
+		text-transform: uppercase;
+		color: var(--hub);
+	}
+
+	.question { margin: 0 0 12px; color: var(--white); }
+
+	/* The three question types, with the round's own one lit. */
+	.modes { display: flex; gap: 6px; list-style: none; margin: 0 0 10px; padding: 0; }
+	.modes li {
+		flex: 1;
+		border: 1px solid var(--line);
+		border-radius: 3px;
+		padding: 4px 6px;
+		font-size: 10px;
+		letter-spacing: 0.1em;
+		text-transform: uppercase;
+		text-align: center;
+		color: var(--faint);
+	}
+	.modes li.is-on { border-color: var(--amber); color: var(--amber); }
+
+	/* The five frames, same idea. */
+	.frames { list-style: none; margin: 0 0 14px; padding: 0; }
+	.frames li {
 		display: flex;
 		flex-direction: column;
 		border-left: 2px solid var(--line);
-		padding: 3px 0 3px 10px;
+		padding: 2px 0 2px 10px;
 		color: var(--faint);
 	}
-	.dials li b { font-weight: 500; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
-	.dials li.is-on { border-left-color: var(--amber); color: var(--white); }
-	.dials li.is-on .tag { color: var(--muted); }
+	.frames li b { font-weight: 500; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+	.frames li.is-on { border-left-color: var(--amber); color: var(--white); }
+	.frames li.is-on .tag { color: var(--muted); }
 
 	.row {
 		display: flex;
@@ -285,7 +322,7 @@ const stars = Array.from({ length: 220 }, () => {
 	.action:hover { background: rgba(255, 193, 77, 0.12); }
 	.action[disabled] { opacity: 0.4; cursor: default; border-color: var(--faint); color: var(--faint); }
 
-	@media (max-width: 820px) {
+	@media (max-width: 860px) {
 		main {
 			grid-template-columns: minmax(0, 1fr);
 			grid-template-areas: 'top' 'stage' 'panel';

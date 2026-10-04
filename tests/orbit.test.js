@@ -3,68 +3,223 @@ import assert from 'node:assert/strict'
 
 import {
 	AU,
+	FRAMES,
+	MU,
+	QUESTIONS,
 	ROUNDS_PER_DAY,
-	SCALES,
+	ZOOMS,
 	dayKey,
-	decades,
+	dealDaily,
 	decadesOf,
+	dialFor,
+	formatDuration,
 	formatKm,
 	formatRatio,
-	kmToT,
-	pickDaily,
+	formatSpeed,
+	frameFor,
+	fromT,
+	fromWindow,
+	periodSeconds,
 	ratio,
-	scaleFor,
+	ringValues,
 	score,
-	tToKm,
+	speedKms,
+	supports,
+	toT,
+	toWindow,
+	windowFor,
 } from '../shared/orbit.js'
 import { OBJECTS } from '../shared/objects.js'
 
-const NEAR = SCALES[0]
-const SOLAR = SCALES[2]
+const byId = (id) => OBJECTS.find((o) => o.id === id)
+const dialsOf = (q) => FRAMES.map((f) => dialFor(q, f, OBJECTS)).filter(Boolean)
+const ALL_DIALS = QUESTIONS.flatMap(dialsOf)
+
+test('derived periods match the published ones', () => {
+	// Minutes for the ISS, days for the Moon, years for Earth: if Kepler is
+	// wired up wrong, one of these is out by orders of magnitude.
+	const minutes = periodSeconds(byId('iss')) / 60
+	assert.ok(Math.abs(minutes - 92.9) < 1.5, `ISS period came out ${minutes.toFixed(1)} min`)
+	const days = periodSeconds(byId('moon')) / 86_400
+	assert.ok(Math.abs(days - 27.3) < 0.3, `Moon period came out ${days.toFixed(2)} days`)
+	const years = periodSeconds(byId('earth')) / (86_400 * 365.25)
+	assert.ok(Math.abs(years - 1) < 0.01, `Earth period came out ${years.toFixed(3)} years`)
+	const charon = periodSeconds(byId('charon')) / 86_400
+	assert.ok(Math.abs(charon - 6.39) < 0.2, `Charon period came out ${charon.toFixed(2)} days`)
+})
+
+test('derived speeds match the published ones', () => {
+	assert.ok(Math.abs(speedKms(byId('iss')) - 7.66) < 0.1)
+	assert.ok(Math.abs(speedKms(byId('moon')) - 1.02) < 0.05)
+	assert.ok(Math.abs(speedKms(byId('earth')) - 29.8) < 0.3)
+	assert.ok(Math.abs(speedKms(byId('jupiter')) - 13.1) < 0.3)
+})
+
+test('escape trajectories are asked the one question they can answer', () => {
+	const v1 = byId('voyager1')
+	assert.equal(periodSeconds(v1), null)
+	assert.equal(speedKms(v1), null)
+	const [distance, period, speed] = QUESTIONS
+	assert.ok(supports(distance, v1))
+	assert.ok(!supports(period, v1))
+	assert.ok(!supports(speed, v1))
+})
+
+test('every primary anything orbits has a mu', () => {
+	for (const o of OBJECTS) {
+		if (o.kind !== 'orbit') continue
+		assert.ok(MU[o.primary], `${o.id} orbits ${o.primary}, which has no mu`)
+	}
+})
 
 test('every dial maps both ends and round-trips in between', () => {
-	for (const s of SCALES) {
-		assert.equal(kmToT(s.minKm, s), 0, `${s.id} min`)
-		assert.equal(kmToT(s.maxKm, s), 1, `${s.id} max`)
-		for (const t of [0.1, 0.37, 0.5, 0.92]) {
-			assert.ok(Math.abs(kmToT(tToKm(t, s), s) - t) < 1e-12, `${s.id} did not round-trip ${t}`)
+	for (const d of ALL_DIALS) {
+		assert.equal(toT(d.min, d), 0, `${d.id} min`)
+		assert.equal(toT(d.max, d), 1, `${d.id} max`)
+		for (const t of [0.1, 0.37, 0.92]) {
+			assert.ok(Math.abs(toT(fromT(t, d), d) - t) < 1e-12, `${d.id} did not round-trip ${t}`)
 		}
 	}
 })
 
 test('a dial clamps instead of running off the end', () => {
-	assert.equal(kmToT(1, NEAR), 0)
-	assert.equal(kmToT(1e30, NEAR), 1)
-	assert.ok(Math.abs(tToKm(-5, NEAR) - NEAR.minKm) < 1e-6)
-	assert.ok(Math.abs(tToKm(5, NEAR) - NEAR.maxKm) < 1e-6)
+	const d = dialsOf(QUESTIONS[0])[0]
+	assert.equal(toT(1e-9, d), 0)
+	assert.equal(toT(1e30, d), 1)
+	assert.ok(Math.abs(fromT(-5, d) - d.min) < 1e-6)
+	assert.ok(Math.abs(fromT(5, d) - d.max) / d.max < 1e-12)
 })
 
-test('every dial is narrow enough to read and wide enough to be a question', () => {
-	for (const s of SCALES) {
-		assert.ok(decadesOf(s) > 1, `${s.id} is too narrow to guess on`)
-		assert.ok(decadesOf(s) < 4, `${s.id} spans ${decadesOf(s)} decades, which is a smudge`)
-		assert.ok(decades(s).length >= 2, `${s.id} has too few decade rings to orient by`)
-		for (const a of s.anchors) {
-			assert.ok(a.km > s.minKm && a.km < s.maxKm, `${s.id}: anchor ${a.label} is off its own dial`)
+test('all fifteen dials are readable and have something to ask', () => {
+	assert.equal(ALL_DIALS.length, QUESTIONS.length * FRAMES.length)
+	for (const q of QUESTIONS) {
+		for (const f of FRAMES) {
+			const d = dialFor(q, f, OBJECTS)
+			assert.ok(d, `${q.id} on ${f.id} has no dial`)
+			assert.ok(decadesOf(d) < 4, `${d.id} spans ${decadesOf(d).toFixed(2)} decades, a smudge`)
+			assert.ok(decadesOf(d) > 0.4, `${d.id} spans ${decadesOf(d).toFixed(2)} decades, too tight`)
+			const askable = OBJECTS.filter((o) => frameFor(o.km) === f && supports(q, o))
+			assert.ok(askable.length >= 5, `${q.id} on ${f.id} only has ${askable.length} entries`)
+			// Nothing on a stop, where it could be found without knowing anything.
+			for (const o of askable) {
+				const t = toT(q.valueOf(o), d)
+				assert.ok(t > 0.02 && t < 0.98, `${o.id} sits on a stop of ${d.id}`)
+			}
+			// At least two rings to orient by, including the narrow speed dials.
+			assert.ok(ringValues(d.min, d.max).length >= 2, `${d.id} has too few rings`)
+		}
+	}
+})
+
+test('every frame has a landmark ring for every question', () => {
+	for (const f of FRAMES) {
+		for (const q of QUESTIONS) {
+			const marks = OBJECTS.filter((o) => o.ring && frameFor(o.km) === f && supports(q, o))
+			const extra = f.surface && q.id === 'distance' ? 1 : 0
+			assert.ok(marks.length + extra >= 1, `${f.id} has nothing to read ${q.id} against`)
+		}
+	}
+})
+
+test('a wide window gets 1-2-5 rings, a narrow one gets linear rings', () => {
+	assert.deepEqual(ringValues(1_000, 10_000), [1_000, 2_000, 5_000, 10_000])
+	for (const v of ringValues(0.2 * AU, 4.5 * AU)) {
+		assert.ok(v >= 0.2 * AU && v <= 4.5 * AU)
+	}
+	// Zoomed in to a fifth of a decade, 1-2-5 would leave one ring or none.
+	assert.deepEqual(ringValues(14, 19), [14, 15, 16, 17, 18, 19])
+	assert.deepEqual(ringValues(12, 19), [12, 14, 16, 18])
+})
+
+test('every window on every dial leaves something to orient by', () => {
+	for (const q of QUESTIONS) {
+		for (const f of FRAMES) {
+			const d = dialFor(q, f, OBJECTS)
+			for (const z of ZOOMS) {
+				for (const around of [0, 0.5, 1]) {
+					const w = windowFor(d, z, around)
+					const rings = ringValues(fromT(w.from, d), fromT(w.to, d))
+					assert.ok(rings.length >= 2, `${d.id} at ${z}x around ${around}: ${rings.length} rings`)
+					for (const v of rings) {
+						assert.ok(v >= fromT(w.from, d) * 0.999 && v <= fromT(w.to, d) * 1.001, `${d.id} ring off window`)
+					}
+				}
+			}
 		}
 	}
 })
 
 test('scoring is 100 for exact, a point per 1% of the dial missed, never negative', () => {
-	assert.equal(score(42_164, 42_164, NEAR), 100)
-	// Half the dial out is half the points, on any dial.
-	for (const s of SCALES) {
-		assert.equal(score(tToKm(0.25, s), tToKm(0.75, s), s), 50)
-		assert.equal(score(s.minKm, s.maxKm, s), 0)
+	for (const d of ALL_DIALS) {
+		assert.equal(score(fromT(0.5, d), fromT(0.5, d), d), 100, d.id)
+		assert.equal(score(fromT(0.25, d), fromT(0.75, d), d), 50, d.id)
+		assert.equal(score(d.min, d.max, d), 0, d.id)
 	}
 })
 
-test('the same factor-of-ten miss costs more on a narrower dial', () => {
-	const nearMiss = score(63_710, 6_371, NEAR)
-	const solarMiss = score(10 * AU, AU, SOLAR)
-	assert.ok(nearMiss < solarMiss, 'a decade should hurt more where the dial is only two decades wide')
-	// And it is still the same miss in kilometres terms on either dial.
-	assert.equal(ratio(63_710, 6_371), ratio(10 * AU, AU))
+test('zooming changes what is visible and never the score', () => {
+	const d = dialsOf(QUESTIONS[0])[2]
+	const actual = fromT(0.62, d)
+	const guess = fromT(0.58, d)
+	const flat = score(guess, actual, d)
+	for (const z of ZOOMS) {
+		const w = windowFor(d, z, 0.58)
+		assert.equal(score(guess, actual, d), flat, `zoom ${z} changed the score`)
+		assert.ok(Math.abs(w.to - w.from - 1 / z) < 1e-12, `zoom ${z} window is the wrong width`)
+		// Window maths round-trips, so the ring a player aims at is the value read.
+		assert.ok(Math.abs(fromWindow(toWindow(0.58, w), w) - 0.58) < 1e-12)
+	}
+})
+
+test('a zoomed window stays on the dial, even at the ends', () => {
+	const d = dialsOf(QUESTIONS[1])[0]
+	for (const around of [0, 0.02, 0.5, 0.98, 1]) {
+		for (const z of ZOOMS) {
+			const w = windowFor(d, z, around)
+			assert.ok(w.from >= 0 && w.to <= 1 + 1e-12, `zoom ${z} at ${around} ran off the dial`)
+		}
+	}
+})
+
+test('a day deals the same hand twice, and different days differ', () => {
+	const a = dealDaily(OBJECTS, '2026-03-14')
+	const b = dealDaily(OBJECTS, '2026-03-14')
+	const c = dealDaily(OBJECTS, '2026-03-15')
+	const sig = (hand) => hand.map((r) => `${r.object.id}:${r.question.id}`)
+	assert.deepEqual(sig(a), sig(b))
+	assert.notDeepEqual(sig(a), sig(c))
+})
+
+test('every day is full, mixes question types, and repeats nothing', () => {
+	for (let i = 0; i < 400; i++) {
+		const key = dayKey(new Date(Date.UTC(2026, 0, 1 + i)))
+		const hand = dealDaily(OBJECTS, key)
+		assert.equal(hand.length, ROUNDS_PER_DAY, `${key} dealt ${hand.length} rounds`)
+		assert.equal(new Set(hand.map((r) => r.object.id)).size, ROUNDS_PER_DAY, `${key} repeated an object`)
+		assert.ok(new Set(hand.map((r) => r.question.id)).size >= 2, `${key} asked only one question type`)
+		for (const r of hand) assert.ok(supports(r.question, r.object), `${key} asked the impossible`)
+	}
+})
+
+test('every catalogue entry is complete and lands on exactly one frame', () => {
+	const ids = new Set()
+	for (const o of OBJECTS) {
+		assert.ok(!ids.has(o.id), `duplicate id ${o.id}`)
+		ids.add(o.id)
+		assert.ok(o.name && o.primary && o.note, `${o.id} is missing copy`)
+		assert.ok(['orbit', 'distance'].includes(o.kind), `${o.id} has an odd kind`)
+		assert.ok(Number.isFinite(o.km) && o.km > 0, `${o.id} has no distance`)
+		assert.ok(o.tags?.length, `${o.id} has no category`)
+		assert.equal(FRAMES.filter((f) => o.km > f.minKm && o.km < f.maxKm).length, 1, `${o.id} frames`)
+	}
+	assert.ok(ids.size >= 80, `catalogue is down to ${ids.size} entries`)
+})
+
+test('every category has enough entries to be a category', () => {
+	const counts = new Map()
+	for (const o of OBJECTS) for (const tag of o.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1)
+	assert.ok(counts.size >= 10, `only ${counts.size} categories`)
+	for (const [tag, n] of counts) assert.ok(n >= 3, `category "${tag}" only has ${n} entries`)
 })
 
 test('ratio reads the same whichever side the guess fell on', () => {
@@ -79,63 +234,20 @@ test('a miss is never reported in exponent notation', () => {
 	assert.equal(formatRatio(4_400_000), '4,400,000x')
 })
 
-test('a day deals the same hand twice, and different days differ', () => {
-	const a = pickDaily(OBJECTS, '2026-03-14')
-	const b = pickDaily(OBJECTS, '2026-03-14')
-	const c = pickDaily(OBJECTS, '2026-03-15')
-	assert.deepEqual(a.map((o) => o.id), b.map((o) => o.id))
-	assert.notDeepEqual(a.map((o) => o.id), c.map((o) => o.id))
-})
-
-test('a day never repeats an object, and always fills the round count', () => {
-	for (let i = 0; i < 400; i++) {
-		const key = dayKey(new Date(Date.UTC(2026, 0, 1 + i)))
-		const hand = pickDaily(OBJECTS, key)
-		assert.equal(hand.length, ROUNDS_PER_DAY)
-		assert.equal(new Set(hand.map((o) => o.id)).size, ROUNDS_PER_DAY, `${key} dealt a duplicate`)
-	}
-})
-
-test('asking for more objects than exist returns the catalogue, not undefined', () => {
-	const hand = pickDaily(OBJECTS, '2026-03-14', OBJECTS.length + 10)
-	assert.equal(hand.length, OBJECTS.length)
-	assert.ok(hand.every(Boolean))
-})
-
-test('every catalogue entry lands on exactly one dial, inside it', () => {
-	const ids = new Set()
-	for (const o of OBJECTS) {
-		assert.ok(!ids.has(o.id), `duplicate id ${o.id}`)
-		ids.add(o.id)
-		assert.ok(o.name && o.primary && o.note, `${o.id} is missing copy`)
-		assert.ok(['orbit', 'distance'].includes(o.kind), `${o.id} has an odd kind`)
-		assert.ok(Number.isFinite(o.km) && o.km > 0, `${o.id} has no distance`)
-
-		// No gaps: an entry that falls between two dials has nowhere to be asked.
-		const scale = scaleFor(o.km)
-		assert.ok(scale, `${o.id} at ${o.km} km falls between dials`)
-		// And no ambiguity: the dial it gets must be the only one that fits.
-		const fits = SCALES.filter((s) => o.km > s.minKm && o.km < s.maxKm)
-		assert.equal(fits.length, 1, `${o.id} fits ${fits.length} dials`)
-	}
-	assert.ok(ids.size >= 50, 'catalogue is too small to go a month without repeats')
-})
-
-test('every dial has enough entries to be worth having', () => {
-	for (const s of SCALES) {
-		const n = OBJECTS.filter((o) => scaleFor(o.km) === s).length
-		assert.ok(n >= 5, `${s.id} only has ${n} entries`)
-	}
-})
-
-test('distances are formatted in the unit a person would say', () => {
+test('every quantity is formatted in the unit a person would say', () => {
 	assert.equal(formatKm(6_791), '6,791 km')
-	assert.equal(formatKm(384_400), '384,400 km')
 	assert.equal(formatKm(1_221_870), '1.2 million km')
-	assert.equal(formatKm(1e7), '10 million km')
 	// No "0.067 AU" anywhere on a dial: AU only once AU is the natural unit.
 	assert.equal(formatKm(1e8), '100 million km')
 	assert.equal(formatKm(AU), '1.0 AU')
-	assert.equal(formatKm(5.204 * AU), '5.2 AU')
 	assert.equal(formatKm(30.07 * AU), '30 AU')
+
+	assert.equal(formatDuration(5_570), '1.5 hours')
+	assert.equal(formatDuration(86_400), '24 hours')
+	assert.equal(formatDuration(27.3 * 86_400), '27 days')
+	assert.equal(formatDuration(365.25 * 86_400), '1.0 years')
+	assert.equal(formatDuration(11_390 * 365.25 * 86_400), '11,390 years')
+
+	assert.equal(formatSpeed(7.66), '7.66 km/s')
+	assert.equal(formatSpeed(29.8), '30 km/s')
 })

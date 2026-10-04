@@ -1,5 +1,5 @@
 #!/bin/sh
-# Ship Orbit to Jinx. Runs from a dev box, not on Jinx: everything it does
+# Ship Orbitle to Jinx. Runs from a dev box, not on Jinx: everything it does
 # there goes over one ssh.
 #
 # The box has git and docker but no node, so it pulls the committed source from
@@ -12,10 +12,10 @@
 # in it.
 set -eu
 
-REPO="${REPO:-https://github.com/MayurJivani/Orbit.git}"
+REPO="${REPO:-https://github.com/MayurJivani/Orbitle.git}"
 BRANCH="${BRANCH:-main}"
 HOST="${HOST:-ssh.futile.studio}"
-APP=/opt/apps/Orbit
+APP=/opt/apps/Orbitle
 
 ssh "$HOST" "
 set -eu
@@ -41,7 +41,7 @@ docker run --rm \
   node:22-alpine \
   sh -c 'npm ci --no-audit --no-fund && npm test && npm run build'
 
-git -C $APP log -1 --format='orbit: deployed %h %s'
+git -C $APP log -1 --format='orbitle: deployed %h %s'
 "
 
-echo "orbit: http://orbit.futile.studio"
+echo "orbitle: http://orbitle.futile.studio"
