@@ -24,6 +24,37 @@ export const MU = {
 	Pluto: 975.5,
 }
 
+/**
+ * Whose orbit it is. The mu above is what the physics needs; this is what a
+ * player needs: how big the thing at the centre is, how heavy, and one line
+ * about it. Nine entries, and every fact about the body at the hub comes from
+ * here rather than being retyped per object.
+ *
+ * `radius` is the mean radius in km, `masses` is Earth masses.
+ */
+export const PRIMARIES = {
+	'the Sun': { radius: 696_000, masses: 332_950, kind: 'star',
+		note: 'Holds 99.8% of all the mass in the solar system.' },
+	Earth: { radius: 6_371, masses: 1, kind: 'planet',
+		note: 'The one orbit everybody already has a feel for.' },
+	'the Moon': { radius: 1_737, masses: 0.0123, kind: 'moon',
+		note: 'A quarter of Earth across, and an eightieth of its mass.' },
+	Mars: { radius: 3_390, masses: 0.107, kind: 'planet',
+		note: 'Half Earth\'s width, a tenth of its mass, two tiny moons.' },
+	Jupiter: { radius: 69_911, masses: 317.8, kind: 'planet',
+		note: 'Heavier than everything else orbiting the Sun put together.' },
+	Saturn: { radius: 58_232, masses: 95.2, kind: 'planet',
+		note: 'Less dense than water, and its rings are mostly ice.' },
+	Uranus: { radius: 25_362, masses: 14.5, kind: 'planet',
+		note: 'Tipped on its side, so its moons orbit like a dartboard.' },
+	Neptune: { radius: 24_622, masses: 17.1, kind: 'planet',
+		note: 'Found by arithmetic in 1846 before anyone pointed a telescope at it.' },
+	Pluto: { radius: 1_188, masses: 0.0022, kind: 'dwarf planet',
+		note: 'Smaller than our own Moon, and locked in a dance with Charon.' },
+}
+
+const LIGHT_KM_S = 299_792.458
+
 /** Orbital period in seconds, from Kepler's third law. */
 export function periodSeconds(o) {
 	const mu = MU[o.primary]
@@ -108,6 +139,12 @@ export function frameFor(km) {
 }
 
 export function formatDuration(seconds) {
+	// Seconds and minutes exist for light-time, which the orbital periods never
+	// reach: light crosses to the Moon in 1.3 seconds and the fact sheet was
+	// reporting that kind of number as "0.0 hours".
+	if (seconds < 90) return `${seconds < 10 ? seconds.toFixed(1) : Math.round(seconds)} seconds`
+	const minutes = seconds / 60
+	if (minutes < 120) return `${minutes < 10 ? minutes.toFixed(1) : Math.round(minutes)} minutes`
 	const hours = seconds / 3_600
 	if (hours < 48) return `${hours < 10 ? hours.toFixed(1) : Math.round(hours)} hours`
 	const days = hours / 24
@@ -131,6 +168,20 @@ export function formatKm(km) {
 	}
 	const au = km / AU
 	return `${au < 10 ? au.toFixed(1) : Math.round(au).toLocaleString('en-US')} AU`
+}
+
+/**
+ * A width, in the unit it is normally said in: centimetres and metres for
+ * hardware, km for worlds. Vanguard 1 is 16 cm across and rounded to "0 m"
+ * until the centimetre case existed.
+ */
+export function formatSize(km) {
+	const m = km * 1000
+	if (m < 1) return `${Math.round(m * 100)} cm`
+	if (m < 10) return `${m.toFixed(1)} m`
+	if (km < 1) return `${Math.round(m).toLocaleString('en-US')} m`
+	if (km < 10) return `${km.toFixed(1)} km`
+	return `${Math.round(km).toLocaleString('en-US')} km`
 }
 
 export function formatSpeed(kms) {
@@ -333,6 +384,83 @@ export function landmarkRings(question, frame, objects, exclude) {
 		rings.push({ label: frame.surface.label, value: frame.surface.km })
 	}
 	return rings
+}
+
+/**
+ * Everything worth saying about a round once the answer is out, derived from the
+ * entry's one distance, its width, and its primary's row in PRIMARIES. Returned
+ * as a list of label/value pairs so the panel can render it without knowing
+ * which facts apply to what.
+ *
+ * Nothing here is hand-written per object. An altitude is the semi-major axis
+ * minus the primary's radius, "in primary radii" is a division, and the
+ * light-time is a division by c. Ninety-nine entries would otherwise need
+ * ninety-nine paragraphs, and most of them would go stale.
+ */
+export function factsFor(o) {
+	const host = PRIMARIES[o.primary]
+	const facts = [{ label: 'width', value: formatSize(o.size) }]
+
+	// How it compares to something the reader has a feel for. Earth for the big
+	// ones, the Moon below that, so the multiple is never a silly number.
+	const moon = 3_475
+	const earth = 12_742
+	if (o.size >= 2_000) {
+		facts.push({ label: 'that is', value: `${(o.size / earth).toFixed(2)}x Earth’s width` })
+	} else if (o.size >= 1) {
+		facts.push({ label: 'that is', value: `${((o.size / moon) * 100).toFixed(1)}% of the Moon’s width` })
+	} else {
+		facts.push({ label: 'that is', value: 'hardware, not a world' })
+	}
+
+	if (host && o.kind === 'orbit') {
+		const altitude = o.km - host.radius
+		const sun = o.primary === 'the Sun'
+		facts.push({
+			label: sun ? 'from the Sun' : `above ${o.primary}`,
+			value: altitude > 0 ? formatKm(altitude) : 'below the surface, which cannot be right',
+		})
+		// Host radii is a useful handle close in and nonsense far out: Neptune is
+		// 6,463 solar radii from the Sun, which tells a player nothing.
+		const radii = o.km / host.radius
+		if (radii < 200) facts.push({ label: 'in host radii', value: `${radii.toFixed(1)}x` })
+	}
+
+	if (o.primary === 'the Sun') {
+		const seconds = o.km / LIGHT_KM_S
+		facts.push({ label: 'light takes', value: formatDuration(seconds) })
+	}
+
+	const period = periodSeconds(o)
+	if (period) {
+		const perYear = 365.25 * 86_400 / period
+		// "1" is a worse answer than "one every 360 days", so the count only
+		// appears once there are enough of them to be worth counting.
+		facts.push({
+			label: perYear >= 2 ? 'orbits a year' : 'one orbit',
+			value: perYear >= 2 ? Math.round(perYear).toLocaleString('en-US') : formatDuration(period),
+		})
+	}
+
+	return facts
+}
+
+/**
+ * The host of a round, for the line that says whose orbit this is.
+ */
+export function hostOf(o) {
+	const host = PRIMARIES[o.primary]
+	if (!host) return null
+	return {
+		name: o.primary,
+		kind: host.kind,
+		note: host.note,
+		radius: formatKm(host.radius),
+		mass:
+			host.masses >= 1
+				? `${host.masses >= 1000 ? Math.round(host.masses).toLocaleString('en-US') : host.masses}x Earth’s mass`
+				: `${(host.masses * 100).toFixed(2)}% of Earth’s mass`,
+	}
 }
 
 /**

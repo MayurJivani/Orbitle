@@ -54,7 +54,16 @@ whether the dial covers the round's frame or the whole sky. Chosen for the day,
 locked at the first answer.
 
 Score is a point per 1% of the dial missed on Medium, curved for the others, so
-five rounds on different dials add up to one comparable total. Ninety-nine entries in eighteen subject
+five rounds on different dials add up to one comparable total.
+
+Each reveal carries a derived fact sheet: width and what it is a fraction of,
+altitude above the host's surface, orbits a year, light-time, and who the host
+is (radius, mass in Earths, a line about it). Derived from one distance, one
+width and nine host rows, not written per entry.
+
+Mobile: question above the dial, fixed commit bar at the thumb, pinch to zoom,
+SVG type and touch targets scaled up in user units so they survive the viewBox
+being rendered at a third size. Ninety-nine entries in eighteen subject
 categories. Space theme: near-black, nebula washes, seeded starfield. No
 backend.
 

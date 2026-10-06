@@ -17,8 +17,12 @@ import {
 	formatRatio,
 	formatSpeed,
 	frameFor,
+	factsFor,
+	formatSize,
+	hostOf,
 	landmarkRings,
 	modeById,
+	PRIMARIES,
 	MODES,
 	fromT,
 	fromWindow,
@@ -297,6 +301,42 @@ test('a miss is never reported in exponent notation', () => {
 	assert.equal(formatRatio(4_400_000), '4,400,000x')
 })
 
+test('every entry has a width, and a host with a fact sheet behind it', () => {
+	for (const o of OBJECTS) {
+		assert.ok(Number.isFinite(o.size) && o.size > 0, `${o.id} has no width`)
+		// 10 cm to the Sun's diameter: anything outside that is a typo, not a body.
+		assert.ok(o.size > 0.0001 && o.size < 1_400_000, `${o.id} is ${o.size} km across`)
+
+		const host = hostOf(o)
+		assert.ok(host?.name && host.kind && host.note, `${o.id} has no host sheet`)
+
+		const facts = factsFor(o)
+		assert.ok(facts.length >= 3, `${o.id} only derived ${facts.length} facts`)
+		for (const f of facts) {
+			assert.ok(f.label && f.value, `${o.id} has a blank fact`)
+			// Nothing reaches the panel as NaN, undefined or exponent soup.
+			assert.ok(!/NaN|undefined|e\+/.test(f.value), `${o.id}: "${f.label}: ${f.value}"`)
+		}
+	}
+})
+
+test('an altitude is never below its own primary surface', () => {
+	for (const o of OBJECTS) {
+		if (o.kind !== 'orbit') continue
+		const host = PRIMARIES[o.primary]
+		assert.ok(o.km > host.radius, `${o.id} orbits inside ${o.primary} at ${o.km} km`)
+	}
+})
+
+test('a width is said in the unit it would be said in', () => {
+	assert.equal(formatSize(0.00016), '16 cm')
+	assert.equal(formatSize(0.0037), '3.7 m')
+	assert.equal(formatSize(0.109), '109 m')
+	assert.equal(formatSize(4.1), '4.1 km')
+	assert.equal(formatSize(3_475), '3,475 km')
+	assert.equal(formatSize(139_820), '139,820 km')
+})
+
 test('every quantity is formatted in the unit a person would say', () => {
 	assert.equal(formatKm(6_791), '6,791 km')
 	assert.equal(formatKm(1_221_870), '1.2 million km')
@@ -305,7 +345,10 @@ test('every quantity is formatted in the unit a person would say', () => {
 	assert.equal(formatKm(AU), '1.0 AU')
 	assert.equal(formatKm(30.07 * AU), '30 AU')
 
-	assert.equal(formatDuration(5_570), '1.5 hours')
+	// Light-time reaches down into seconds, so the small units have to be there.
+	assert.equal(formatDuration(1.28), '1.3 seconds')
+	assert.equal(formatDuration(193), '3.2 minutes')
+	assert.equal(formatDuration(5_570), '93 minutes')
 	assert.equal(formatDuration(86_400), '24 hours')
 	assert.equal(formatDuration(27.3 * 86_400), '27 days')
 	assert.equal(formatDuration(365.25 * 86_400), '1.0 years')

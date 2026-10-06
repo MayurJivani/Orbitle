@@ -4,7 +4,7 @@
 ![Astro](https://img.shields.io/badge/Astro-7-BC52EE?style=flat-square&logo=astro&logoColor=white)
 ![Node](https://img.shields.io/badge/Node-22%2B-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white)
 ![No backend](https://img.shields.io/badge/backend-none-5eb8ff?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-23%20passing-success?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-26%20passing-success?style=flat-square)
 [![Last commit](https://img.shields.io/github/last-commit/MayurJivani/Orbitle?style=flat-square)](https://github.com/MayurJivani/Orbitle/commits/main)
 
 A daily guessing game about orbits. Five rounds a day: how far out something
@@ -60,10 +60,31 @@ full miss is 0 whichever mode you played. The mode is a choice for the day and
 locks when you place your first answer, since it is what the earlier rounds were
 scored on.
 
+## What you learn when the answer lands
+
+Every round ends with a fact sheet: how wide the thing is and what that is a
+fraction of, how far above its host's surface it actually sits, how many orbits
+a year that works out to, how long light takes to cross the distance, plus a
+line about the thing and a line about whose orbit it is (what the host is, how
+wide, how heavy, and one fact about it).
+
+None of that is written out per entry. Each entry carries one distance and one
+width; the host contributes a radius, a mass and a note; everything else is
+arithmetic over those. Ninety-nine entries would otherwise need ninety-nine
+paragraphs, and most of them would go stale.
+
 Ninety-nine things to be asked about, in eighteen categories: stations, spy
 satellites, dead missions, moons, Trojans, centaurs, Kuiper belt objects,
 comets and the rest. Growing that list is the cheapest way to improve the game,
 and it is the only part of this repo that needs no code.
+
+## On a phone
+
+The question sits above the dial, the readout and the one button that matters
+are a fixed bar at the bottom, pinching the dial zooms it, and the marker's
+touch target is 57 px across. The dial's labels are set in SVG user units, so
+they are scaled up on a narrow screen to land at a readable size rather than
+the five pixels they would otherwise render at.
 
 The reasoning (why log dials, why five frames, why no backend) is in
 **[HOW-IT-WORKS.md](HOW-IT-WORKS.md)**. What comes next, including a 3D mode, is

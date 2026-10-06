@@ -20,7 +20,9 @@ import {
 	frameFor,
 	fromT,
 	fromWindow,
+	factsFor,
 	grade,
+	hostOf,
 	landmarkRings,
 	modeById,
 	pxFromT,
@@ -59,6 +61,8 @@ const el = {
 	actual: $('actual'),
 	delta: $('delta'),
 	note: $('note'),
+	facts: $('facts'),
+	host: $('host'),
 	points: $('points'),
 	grade: $('grade'),
 	summary: $('summary'),
@@ -306,11 +310,32 @@ function reveal() {
 			? 'dead on'
 			: `${formatRatio(ratio(guess, actual))} ${guess > actual ? question.over : question.under}`
 	el.note.textContent = object.note
+
+	// What the thing actually is, and whose orbit it sits in. Every line of this
+	// is derived in the module from one distance, one width and the host's row.
+	el.facts.replaceChildren()
+	for (const fact of factsFor(object)) {
+		const dt = document.createElement('dt')
+		dt.textContent = fact.label
+		const dd = document.createElement('dd')
+		dd.textContent = fact.value
+		el.facts.append(dt, dd)
+	}
+
+	const host = hostOf(object)
+	el.host.textContent = host
+		? `${host.name}: a ${host.kind}, ${host.radius} in radius, ${host.mass}. ${host.note}`
+		: ''
 	el.points.textContent = String(points)
 	el.grade.textContent = grade(points).word
 	el.verdict.hidden = false
 	el.place.hidden = true
 	el.next.hidden = index >= rounds.length - 1
+
+	// On a phone the panel sits under the dial and the commit bar covers the top
+	// of it, so the result would land off screen. Harmless where it is already
+	// visible, which is every desktop.
+	el.verdict.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
 }
 
 /** Each round is scored on its own dial, which is why this is not one map. */
@@ -394,20 +419,55 @@ for (const b of modeButtons) {
 el.zoomIn.addEventListener('click', () => stepZoom(1))
 el.zoomOut.addEventListener('click', () => stepZoom(-1))
 
+// Two fingers zoom, one finger places. The pinch is tracked as a ratio against
+// the span the gesture started at, and each time it crosses a step the zoom
+// moves one notch and the baseline resets, so a long pinch walks through the
+// levels instead of jumping to an end.
+const touching = new Map()
+let pinchSpan = 0
+
+const span = () => {
+	const [a, b] = [...touching.values()]
+	return Math.hypot(a.x - b.x, a.y - b.y)
+}
+
 dial.addEventListener('pointerdown', (event) => {
-	if (revealed) return
+	touching.set(event.pointerId, { x: event.clientX, y: event.clientY })
+	if (touching.size === 2) {
+		pinchSpan = span()
+		return
+	}
+	if (revealed || touching.size > 2) return
 	dial.setPointerCapture(event.pointerId)
 	aimAt(event)
 })
 
 dial.addEventListener('pointermove', (event) => {
+	if (touching.has(event.pointerId)) {
+		touching.set(event.pointerId, { x: event.clientX, y: event.clientY })
+	}
+	if (touching.size === 2) {
+		const now = span()
+		if (pinchSpan > 0 && now / pinchSpan > 1.3) {
+			stepZoom(1)
+			pinchSpan = now
+		} else if (pinchSpan > 0 && now / pinchSpan < 0.77) {
+			stepZoom(-1)
+			pinchSpan = now
+		}
+		return
+	}
 	if (revealed || !dial.hasPointerCapture(event.pointerId)) return
 	aimAt(event)
 })
 
-dial.addEventListener('pointerup', (event) => {
-	if (dial.hasPointerCapture(event.pointerId)) dial.releasePointerCapture(event.pointerId)
-})
+for (const done of ['pointerup', 'pointercancel']) {
+	dial.addEventListener(done, (event) => {
+		touching.delete(event.pointerId)
+		if (touching.size < 2) pinchSpan = 0
+		if (dial.hasPointerCapture(event.pointerId)) dial.releasePointerCapture(event.pointerId)
+	})
+}
 
 // Wheel zooms the dial rather than the page, but only over the dial itself.
 dial.addEventListener(

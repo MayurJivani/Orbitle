@@ -223,6 +223,53 @@ Three things in the client that are less obvious than they look:
   and end hit the stops, and enter locks the guess in. A game whose only input
   is a drag is a game some people cannot play.
 
+## The fact sheet is derived, not written
+
+A round ends with a dozen numbers about the thing and its host, and none of them
+are typed per entry. Each catalogue entry carries one distance and one width.
+`PRIMARIES` adds nine rows, one per body anything in here orbits: mean radius,
+mass in Earths, what kind of thing it is, and one line about it. Everything on
+the reveal falls out of those:
+
+- The altitude is the semi-major axis minus the host's radius, which is how an
+  ISS entry stored as 6,791 km reports itself as "420 km above Earth".
+- "In host radii" is a division, shown only below 200x, because Neptune sitting
+  6,463 solar radii from the Sun tells a player nothing.
+- Light-time is a division by c. It reaches down into seconds (1.3 of them to
+  the Moon), which is what forced minutes and seconds into `formatDuration`:
+  the orbital periods never go below an hour and a half, so the fact sheet was
+  the first thing to report "0.3 hours" at anybody.
+- Orbits per year comes from the period, and flips to "one orbit: 360 days"
+  below two a year, because "1" is a worse answer than the duration.
+- The width is compared to Earth above 2,000 km and to the Moon below it, so the
+  multiple is never a silly number, and hardware is simply called hardware
+  rather than being measured against a moon.
+
+The same reason as the periods and the speeds: one number per entry cannot
+disagree with itself, and a hundred hand-written paragraphs would.
+
+## Mobile is a different instrument, not a narrower one
+
+The dial is an SVG with a 1000 unit viewBox. On a 375 px phone the whole thing
+renders at about a third scale, which silently divides every size in it: 15 px
+labels arrive as 5 px, and a 34 unit touch target on the marker is 12 real
+pixels, which no thumb can hit. Both are fixed in a media query that raises the
+values in user units, so the labels land at 11 px and the marker's target at 57.
+Geometry properties (`r` on a circle) are settable from CSS, which is how the
+marker grows without the client knowing anything about viewports.
+
+The layout is reordered rather than reflowed. The question moves above the dial,
+because a phone that shows a dial and makes you scroll for the question is
+asking you to remember it; and the readout and the button that commits an answer
+become a fixed bar at the bottom, inside the thumb's reach, with the page padded
+so nothing hides under it. The reveal scrolls itself into view, since on a phone
+it would otherwise land under that bar.
+
+Pinching zooms. A diagram with a zoom control is expected to answer two fingers,
+and the gesture is tracked as a ratio against the span it started at, stepping
+one notch each time it crosses a threshold and then resetting the baseline, so a
+long pinch walks the levels instead of jumping to an end.
+
 ## The look, and the bug that made it unreadable
 
 The first version of this theme was reported as unreadable: "too dark, can't
