@@ -17,6 +17,7 @@ import {
 	formatRatio,
 	formatSpeed,
 	frameFor,
+	briefingFor,
 	factsFor,
 	formatSize,
 	hostOf,
@@ -301,7 +302,7 @@ test('a miss is never reported in exponent notation', () => {
 	assert.equal(formatRatio(4_400_000), '4,400,000x')
 })
 
-test('every entry has a width, and a host with a fact sheet behind it', () => {
+test('every entry fills both sheets, before the answer and after it', () => {
 	for (const o of OBJECTS) {
 		assert.ok(Number.isFinite(o.size) && o.size > 0, `${o.id} has no width`)
 		// 10 cm to the Sun's diameter: anything outside that is a typo, not a body.
@@ -310,12 +311,39 @@ test('every entry has a width, and a host with a fact sheet behind it', () => {
 		const host = hostOf(o)
 		assert.ok(host?.name && host.kind && host.note, `${o.id} has no host sheet`)
 
+		// Width and what it is a fraction of. The category is the chip beside the
+		// subject and the host is its own sentence, so neither is in the grid.
+		const brief = briefingFor(o)
+		assert.ok(brief.length >= 2, `${o.id} briefs with only ${brief.length} lines`)
+		assert.ok(hostOf(o).line.length > 40, `${o.id} has no host sentence`)
 		const facts = factsFor(o)
-		assert.ok(facts.length >= 3, `${o.id} only derived ${facts.length} facts`)
-		for (const f of facts) {
-			assert.ok(f.label && f.value, `${o.id} has a blank fact`)
-			// Nothing reaches the panel as NaN, undefined or exponent soup.
-			assert.ok(!/NaN|undefined|e\+/.test(f.value), `${o.id}: "${f.label}: ${f.value}"`)
+		assert.ok(facts.length >= 1, `${o.id} reveals nothing`)
+
+		// Nothing reaches the panel as NaN, undefined or exponent soup.
+		for (const row of [...brief, ...facts]) {
+			assert.ok(row.label && row.value, `${o.id} has a blank row`)
+			assert.ok(!/NaN|undefined|e\+/.test(row.value), `${o.id}: "${row.label}: ${row.value}"`)
+		}
+	}
+})
+
+test('the briefing never leaks any of the three answers', () => {
+	// Distance, period and speed are derivable from each other given the host's
+	// mu, so stating any one of them before the reveal gives away all three.
+	// Nothing in the briefing may read as one of those values.
+	for (const o of OBJECTS) {
+		const text = briefingFor(o).map((r) => `${r.label} ${r.value}`).join(' | ')
+		for (const q of QUESTIONS) {
+			if (!supports(q, o)) continue
+			const said = q.format(q.valueOf(o))
+			assert.ok(!text.includes(said), `${o.id} briefing says its ${q.id}: "${said}"`)
+		}
+		// And the host's own note, which is shown with the briefing, is about the
+		// host rather than the thing going round it.
+		const hostLine = hostOf(o).line
+		for (const q of QUESTIONS) {
+			if (!supports(q, o)) continue
+			assert.ok(!hostLine.includes(q.format(q.valueOf(o))), `${o.id} host line leaks its ${q.id}`)
 		}
 	}
 })

@@ -56,6 +56,12 @@ locked at the first answer.
 Score is a point per 1% of the dial missed on Medium, curved for the others, so
 five rounds on different dials add up to one comparable total.
 
+Each round briefs before the answer (width, what that is a fraction of, the
+host's kind, size, mass and a fact) and reveals after it. The split is a rule,
+not a layout: distance, period and speed are derivable from each other given the
+host, so the briefing can state none of them, and the per-entry notes are
+post-reveal because many of them say the answer outright.
+
 Each reveal carries a derived fact sheet: width and what it is a fraction of,
 altitude above the host's surface, orbits a year, light-time, and who the host
 is (radius, mass in Earths, a line about it). Derived from one distance, one

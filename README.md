@@ -4,7 +4,7 @@
 ![Astro](https://img.shields.io/badge/Astro-7-BC52EE?style=flat-square&logo=astro&logoColor=white)
 ![Node](https://img.shields.io/badge/Node-22%2B-5FA04E?style=flat-square&logo=nodedotjs&logoColor=white)
 ![No backend](https://img.shields.io/badge/backend-none-5eb8ff?style=flat-square)
-![Tests](https://img.shields.io/badge/tests-26%20passing-success?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-27%20passing-success?style=flat-square)
 [![Last commit](https://img.shields.io/github/last-commit/MayurJivani/Orbitle?style=flat-square)](https://github.com/MayurJivani/Orbitle/commits/main)
 
 A daily guessing game about orbits. Five rounds a day: how far out something
@@ -60,15 +60,24 @@ full miss is 0 whichever mode you played. The mode is a choice for the day and
 locks when you place your first answer, since it is what the earlier rounds were
 scored on.
 
-## What you learn when the answer lands
+## What you know before you answer, and after
 
-Every round ends with a fact sheet: how wide the thing is and what that is a
-fraction of, how far above its host's surface it actually sits, how many orbits
-a year that works out to, how long light takes to cross the distance, plus a
-line about the thing and a line about whose orbit it is (what the host is, how
-wide, how heavy, and one fact about it).
+Before placing anything you get a briefing: what the thing is, how wide it is
+and what that is a fraction of, and a line about its host (what kind of body,
+how wide, how heavy, and one fact about it). Enough to reason with.
 
-None of that is written out per entry. Each entry carries one distance and one
+What the briefing can never contain is any of the three quantities, because
+distance, period and speed are all derivable from each other given the host, so
+stating one gives away all three. That also rules out the per-entry notes, since
+many of them say it outright ("about 420 km up", "30 AU"), which is why those
+are held back. A test walks every entry against every question to prove the
+briefing says none of them.
+
+The reveal then adds what the answer unlocked: how far above the host's surface
+it actually sits, in host radii, how long light takes to cross that distance,
+how many orbits a year it works out to, and the note.
+
+None of it is written out per entry. Each entry carries one distance and one
 width; the host contributes a radius, a mass and a note; everything else is
 arithmetic over those. Ninety-nine entries would otherwise need ninety-nine
 paragraphs, and most of them would go stale.

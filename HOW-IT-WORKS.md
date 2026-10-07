@@ -223,10 +223,35 @@ Three things in the client that are less obvious than they look:
   and end hit the stops, and enter locks the guess in. A game whose only input
   is a drag is a game some people cannot play.
 
+## Two sheets: what you are told, and what you earn
+
+A round shows information twice, and the split is a game rule rather than a
+layout choice.
+
+`briefingFor` is on screen before anything is placed: the width, what that is a
+fraction of, and (as one sentence, because a narrow grid cell wraps it over
+three lines) the host, its kind, its radius, its mass and a fact about it.
+
+`factsFor` only arrives with the answer: the altitude above the host's surface,
+the distance in host radii, the light-time, and the orbits per year.
+
+The line between them is forced by the physics. Distance, period and speed are
+all derivable from each other given the host's mu, so stating any one of them
+before the reveal gives away all three, whichever of them was being asked. That
+is also why the per-entry notes are post-reveal: a good number of them state the
+answer outright ("about 420 km up", "30 AU", "twice a day round the Earth"), and
+auditing ninety-nine sentences for leaks by eye is exactly the sort of thing
+that silently rots. A test takes every entry, formats all three of its
+quantities, and asserts none of those strings appear in its briefing or its
+host line.
+
+The payoff for the player is that a round is now reasoned rather than guessed:
+knowing Titan is 5,150 km across and that Saturn is 95 Earth masses says a great
+deal about what kind of thing is being placed, and nothing about where.
+
 ## The fact sheet is derived, not written
 
-A round ends with a dozen numbers about the thing and its host, and none of them
-are typed per entry. Each catalogue entry carries one distance and one width.
+A round's numbers are not typed per entry. Each catalogue entry carries one distance and one width.
 `PRIMARIES` adds nine rows, one per body anything in here orbits: mean radius,
 mass in Earths, what kind of thing it is, and one line about it. Everything on
 the reveal falls out of those:
@@ -264,6 +289,15 @@ asking you to remember it; and the readout and the button that commits an answer
 become a fixed bar at the bottom, inside the thumb's reach, with the page padded
 so nothing hides under it. The reveal scrolls itself into view, since on a phone
 it would otherwise land under that bar.
+
+The briefing had to be paid for in height, and a phone has none to spare: one
+label/value pair per row pushed the dial down until only 57% of it was above the
+commit bar. The pairs go two to a row on a narrow screen, the host moved into
+prose where it is denser than a grid cell, the duplicate category chip won over
+its grid row, and the difficulty picker stopped claiming `width: 100%`, which
+had been forcing it onto a second header row no matter how small the buttons
+got. That is 94% of the dial visible without scrolling, measured rather than
+guessed at.
 
 Pinching zooms. A diagram with a zoom control is expected to answer two fingers,
 and the gesture is tracked as a ratio against the span it started at, stepping

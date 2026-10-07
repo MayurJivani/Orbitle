@@ -45,6 +45,12 @@ const stars = Array.from({ length: 150 }, () => {
 			<h2 id="subject">—</h2>
 			<p class="primary"><span id="primary">—</span><span class="chip" id="category"></span></p>
 			<p class="question" id="question">—</p>
+
+			<!-- What you get to reason with before placing anything: what the thing
+			     is, how big, and what it is going round. Never its distance, period
+			     or speed, since each of those gives away the other two. -->
+			<dl class="facts brief" id="briefing"></dl>
+			<p class="host" id="host"></p>
 		</section>
 
 		<section class="stage">
@@ -133,7 +139,6 @@ const stars = Array.from({ length: 150 }, () => {
 				<!-- What the thing actually is, and whose orbit it sits in. -->
 				<dl class="facts" id="facts"></dl>
 				<p class="note" id="note"></p>
-				<p class="host" id="host"></p>
 			</div>
 
 			<div id="summary" hidden>
@@ -389,6 +394,10 @@ const stars = Array.from({ length: 150 }, () => {
 	}
 
 	.note { color: var(--hub); border-left: 2px solid var(--line-strong); padding-left: 10px; margin: 12px 0 0; }
+	/* The briefing is reference material rather than a result, so it is quieter
+	   than the reveal's fact sheet. */
+	.brief { margin-top: 10px; }
+	.brief dd { color: var(--muted); }
 	.host { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
 
 	.points, .total { display: flex; align-items: baseline; gap: 10px; margin: 2px 0 8px; }
@@ -428,14 +437,38 @@ const stars = Array.from({ length: 150 }, () => {
 			padding: 10px 10px 92px;
 		}
 
-		h1 { font-size: 26px; }
+		h1 { font-size: 22px; }
+		#day { font-size: 9px; }
 		.top { gap: 10px; }
-		.difficulty { width: 100%; justify-content: space-between; }
-		.levels { flex: 1; justify-content: flex-end; }
-		.level { flex: 1; max-width: 100px; min-height: 44px; }
+		/* Not full width: that forced the picker onto its own row regardless of
+		   how small the buttons got. */
+		.difficulty { width: auto; }
+		.levels { flex: 0 0 auto; }
+		/* Narrow enough that the brand and the three buttons share one row: at
+		   100px they wrapped, and the second row cost the dial 70px of height. */
+		.level { flex: 1; max-width: 74px; min-height: 44px; padding: 7px 4px; font-size: 10px; }
 
-		h2 { font-size: 24px; }
+		h2 { font-size: 22px; }
 		#dial { max-height: none; }
+
+		/* The briefing cost the dial a third of its height on a phone when it was
+		   one pair per row. Two pairs per row, tighter type, and the instrument is
+		   back on screen. */
+		.prompt { padding: 10px 12px; }
+		.prompt .question { font-size: 13px; }
+		.brief {
+			grid-template-columns: auto 1fr auto 1fr;
+			gap: 2px 8px;
+			margin-top: 8px;
+			padding-top: 8px;
+		}
+		.brief dt { font-size: 9px; letter-spacing: 0.1em; }
+		.brief dd { font-size: 12px; }
+		.host { font-size: 11px; margin-top: 6px; }
+
+		/* The three buttons say what they are; the word above them does not earn
+		   its line on a 375 px screen. */
+		.difficulty > .tag { display: none; }
 
 		/* Twice the touch target on the marker: 34 user units is about 12 real
 		   pixels once the dial is scaled to a phone, which is unhittable. */

@@ -387,31 +387,52 @@ export function landmarkRings(question, frame, objects, exclude) {
 }
 
 /**
- * Everything worth saying about a round once the answer is out, derived from the
- * entry's one distance, its width, and its primary's row in PRIMARIES. Returned
- * as a list of label/value pairs so the panel can render it without knowing
- * which facts apply to what.
+ * What a player is told *before* placing an answer: what the thing is, how big
+ * it is, and what it is going round. Enough to reason with, and nothing that
+ * can be turned into the answer.
  *
- * Nothing here is hand-written per object. An altitude is the semi-major axis
- * minus the primary's radius, "in primary radii" is a division, and the
- * light-time is a division by c. Ninety-nine entries would otherwise need
- * ninety-nine paragraphs, and most of them would go stale.
+ * The line that must not be crossed: distance, period and speed are all
+ * derivable from each other given the host's mu, so stating any one of them
+ * gives away all three. That rules out the per-entry notes as well, since many
+ * of them say it outright ("about 420 km up", "30 AU", "twice a day round the
+ * Earth"), which is why those are held back to the reveal. Width and the host's
+ * own dimensions carry no such information: knowing Titan is 5,150 km across
+ * and that Saturn is 95 Earth masses tells you plenty about what kind of thing
+ * you are placing, and nothing about where.
  */
-export function factsFor(o) {
+export function briefingFor(o) {
 	const host = PRIMARIES[o.primary]
-	const facts = [{ label: 'width', value: formatSize(o.size) }]
+	const out = [{ label: 'width', value: formatSize(o.size) }]
 
 	// How it compares to something the reader has a feel for. Earth for the big
 	// ones, the Moon below that, so the multiple is never a silly number.
 	const moon = 3_475
 	const earth = 12_742
 	if (o.size >= 2_000) {
-		facts.push({ label: 'that is', value: `${(o.size / earth).toFixed(2)}x Earth’s width` })
+		out.push({ label: 'that is', value: `${(o.size / earth).toFixed(2)}x Earth’s width` })
 	} else if (o.size >= 1) {
-		facts.push({ label: 'that is', value: `${((o.size / moon) * 100).toFixed(1)}% of the Moon’s width` })
+		out.push({ label: 'that is', value: `${((o.size / moon) * 100).toFixed(1)}% of the Moon’s width` })
 	} else {
-		facts.push({ label: 'that is', value: 'hardware, not a world' })
+		out.push({ label: 'that is', value: 'hardware, not a world' })
 	}
+
+	return out
+}
+
+/**
+ * Everything worth saying about a round once the answer is out. Only the
+ * answer-dependent half lives here; the width and the host sit in the briefing
+ * and are on screen from the start of the round, so repeating them would be
+ * noise.
+ *
+ * Nothing here is hand-written per object. An altitude is the semi-major axis
+ * minus the primary's radius, "in host radii" is a division, and the
+ * light-time is a division by c. Ninety-nine entries would otherwise need
+ * ninety-nine paragraphs, and most of them would go stale.
+ */
+export function factsFor(o) {
+	const host = PRIMARIES[o.primary]
+	const facts = []
 
 	if (host && o.kind === 'orbit') {
 		const altitude = o.km - host.radius
@@ -427,8 +448,7 @@ export function factsFor(o) {
 	}
 
 	if (o.primary === 'the Sun') {
-		const seconds = o.km / LIGHT_KM_S
-		facts.push({ label: 'light takes', value: formatDuration(seconds) })
+		facts.push({ label: 'light takes', value: formatDuration(o.km / LIGHT_KM_S) })
 	}
 
 	const period = periodSeconds(o)
@@ -451,15 +471,21 @@ export function factsFor(o) {
 export function hostOf(o) {
 	const host = PRIMARIES[o.primary]
 	if (!host) return null
+	// "1x Earth's mass" is a silly way to describe Earth.
+	const mass =
+		host.masses === 1
+			? 'the reference for mass'
+			: host.masses >= 1
+				? `${host.masses >= 1000 ? Math.round(host.masses).toLocaleString('en-US') : host.masses}x Earth’s mass`
+				: `${(host.masses * 100).toFixed(2)}% of Earth’s mass`
 	return {
 		name: o.primary,
 		kind: host.kind,
 		note: host.note,
 		radius: formatKm(host.radius),
-		mass:
-			host.masses >= 1
-				? `${host.masses >= 1000 ? Math.round(host.masses).toLocaleString('en-US') : host.masses}x Earth’s mass`
-				: `${(host.masses * 100).toFixed(2)}% of Earth’s mass`,
+		mass,
+		// One sentence, because a narrow grid cell wraps this over three lines.
+		line: `${o.primary}: a ${host.kind}, ${formatKm(host.radius)} in radius, ${mass}. ${host.note}`,
 	}
 }
 

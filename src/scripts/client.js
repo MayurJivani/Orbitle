@@ -20,6 +20,7 @@ import {
 	frameFor,
 	fromT,
 	fromWindow,
+	briefingFor,
 	factsFor,
 	grade,
 	hostOf,
@@ -62,6 +63,7 @@ const el = {
 	delta: $('delta'),
 	note: $('note'),
 	facts: $('facts'),
+	briefing: $('briefing'),
 	host: $('host'),
 	points: $('points'),
 	grade: $('grade'),
@@ -139,6 +141,18 @@ function radiusPx() {
 
 function guessValue() {
 	return fromT(t, dialSpec)
+}
+
+/** Fill a label/value list from the module's derivation. */
+function sheet(into, rows) {
+	into.replaceChildren()
+	for (const row of rows) {
+		const dt = document.createElement('dt')
+		dt.textContent = row.label
+		const dd = document.createElement('dd')
+		dd.textContent = row.value
+		into.append(dt, dd)
+	}
 }
 
 function ring(cls, r, label, labelAbove) {
@@ -279,6 +293,11 @@ function renderRound() {
 		object.kind === 'orbit' ? `orbits ${object.primary}` : `heading away from ${object.primary}`
 	el.category.textContent = object.tags[0]
 	el.question.textContent = question.ask(object)
+
+	// The briefing, before anything is placed. Everything in it is about the
+	// thing and its host, never about where or how fast it goes.
+	sheet(el.briefing, briefingFor(object))
+	el.host.textContent = hostOf(object)?.line ?? ''
 	el.guessLabel.textContent = `your ${question.label}`
 	el.hub.textContent = object.primary.replace(/^the /, '')
 	el.verdict.hidden = true
@@ -310,22 +329,9 @@ function reveal() {
 			? 'dead on'
 			: `${formatRatio(ratio(guess, actual))} ${guess > actual ? question.over : question.under}`
 	el.note.textContent = object.note
-
-	// What the thing actually is, and whose orbit it sits in. Every line of this
-	// is derived in the module from one distance, one width and the host's row.
-	el.facts.replaceChildren()
-	for (const fact of factsFor(object)) {
-		const dt = document.createElement('dt')
-		dt.textContent = fact.label
-		const dd = document.createElement('dd')
-		dd.textContent = fact.value
-		el.facts.append(dt, dd)
-	}
-
-	const host = hostOf(object)
-	el.host.textContent = host
-		? `${host.name}: a ${host.kind}, ${host.radius} in radius, ${host.mass}. ${host.note}`
-		: ''
+	// Only what the answer unlocked: the width and the host were on screen from
+	// the start of the round.
+	sheet(el.facts, factsFor(object))
 	el.points.textContent = String(points)
 	el.grade.textContent = grade(points).word
 	el.verdict.hidden = false
