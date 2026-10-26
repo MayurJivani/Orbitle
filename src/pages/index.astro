@@ -1,6 +1,6 @@
 ---
 import Layout from '../layouts/Layout.astro'
-import { DIAL, FRAMES, MODES, QUESTIONS, ROUNDS_PER_DAY, rng } from '../../shared/orbit.js'
+import { DIAL, MODES, ROUNDS_PER_DAY, rng } from '../../shared/orbit.js'
 
 // A fixed starfield, seeded so every build puts the stars in the same place.
 // It sits outside the ring layer, so zooming the dial does not zoom the sky.
@@ -45,10 +45,19 @@ const stars = Array.from({ length: 150 }, () => {
 			<h2 id="subject">—</h2>
 			<p class="primary"><span id="primary">—</span><span class="chip" id="category"></span></p>
 			<p class="question" id="question">—</p>
+			<!-- Which question type, and which dial it is asked on. Replaces two
+			     lists that spelled out all three questions and all five frames
+			     every round to say the one line that changes. -->
+			<p class="context"><span id="frame-now">—</span></p>
+		</section>
 
-			<!-- What you get to reason with before placing anything: what the thing
-			     is, how big, and what it is going round. Never its distance, period
-			     or speed, since each of those gives away the other two. -->
+		<!-- What you get to reason with before placing anything: what the thing is,
+		     how big, and what it is going round. Never its distance, period or
+		     speed, since each of those gives away the other two.
+		     Its own block because on a phone it belongs under the dial: the
+		     instrument should not be pushed off screen by reference material. -->
+		<section class="plate about">
+			<p class="brief-line" id="brief">—</p>
 			<dl class="facts brief" id="briefing"></dl>
 			<p class="host" id="host"></p>
 		</section>
@@ -113,18 +122,6 @@ const stars = Array.from({ length: 150 }, () => {
 		</section>
 
 		<aside class="plate panel">
-			<ul class="modes" id="questions">
-				{QUESTIONS.map((q) => <li data-question={q.id}>{q.name}</li>)}
-			</ul>
-			<ul class="frames" id="frames">
-				{FRAMES.map((f) => (
-					<li data-frame={f.id}>
-						<b>{f.name}</b>
-						<span class="tag">{f.span}</span>
-					</li>
-				))}
-			</ul>
-
 			<div id="verdict" hidden>
 				<p class="points"><b id="points">0</b><span class="tag" id="grade"></span></p>
 				<div class="row">
@@ -219,9 +216,10 @@ const stars = Array.from({ length: 150 }, () => {
 		grid-template-areas:
 			'top    top'
 			'stage  prompt'
+			'stage  about'
 			'stage  commit'
 			'stage  panel';
-		grid-template-rows: auto auto auto 1fr;
+		grid-template-rows: auto auto auto auto 1fr;
 		gap: 14px;
 		align-items: start;
 		max-width: 1180px;
@@ -257,6 +255,7 @@ const stars = Array.from({ length: 150 }, () => {
 	.level[disabled]:hover { border-color: var(--line); color: var(--muted); }
 
 	.prompt { grid-area: prompt; }
+	.about { grid-area: about; }
 	.prompt-head { display: flex; justify-content: space-between; gap: 10px; }
 	h2 { font-size: 27px; line-height: 1.1; margin: 8px 0 2px; }
 	.primary { display: flex; align-items: center; gap: 8px; margin: 0 0 10px; color: var(--muted); }
@@ -271,6 +270,26 @@ const stars = Array.from({ length: 150 }, () => {
 		white-space: nowrap;
 	}
 	.question { margin: 0; color: var(--white); font-size: 14px; }
+
+	.context { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 0; }
+	.context span {
+		border: 1px solid var(--line);
+		border-radius: 3px;
+		padding: 2px 8px;
+		font-size: 10px;
+		letter-spacing: 0.12em;
+		text-transform: uppercase;
+		color: var(--muted);
+	}
+	.context #q-now { border-color: var(--amber); color: var(--amber); }
+
+	/* The one line that cannot be derived from a number: what the thing is. */
+	.brief-line {
+		margin: 10px 0 0;
+		color: var(--white);
+		border-left: 2px solid var(--amber);
+		padding-left: 10px;
+	}
 
 	.stage { grid-area: stage; }
 
@@ -333,32 +352,6 @@ const stars = Array.from({ length: 150 }, () => {
 	.hint { margin: 8px 0 0; text-align: center; }
 
 	.panel { grid-area: panel; }
-
-	.modes { display: flex; gap: 6px; list-style: none; margin: 0 0 10px; padding: 0; }
-	.modes li {
-		flex: 1;
-		border: 1px solid var(--line);
-		border-radius: 3px;
-		padding: 5px 6px;
-		font-size: 10px;
-		letter-spacing: 0.1em;
-		text-transform: uppercase;
-		text-align: center;
-		color: var(--faint);
-	}
-	.modes li.is-on { border-color: var(--amber); color: var(--amber); }
-
-	.frames { list-style: none; margin: 0; padding: 0; }
-	.frames li {
-		display: flex;
-		flex-direction: column;
-		border-left: 2px solid var(--line);
-		padding: 2px 0 2px 10px;
-		color: var(--faint);
-	}
-	.frames li b { font-weight: 500; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
-	.frames li.is-on { border-left-color: var(--amber); color: var(--white); }
-	.frames li.is-on .tag { color: var(--muted); }
 
 	.row {
 		display: flex;
@@ -432,7 +425,7 @@ const stars = Array.from({ length: 150 }, () => {
 	@media (max-width: 860px) {
 		main {
 			grid-template-columns: minmax(0, 1fr);
-			grid-template-areas: 'top' 'prompt' 'stage' 'panel';
+			grid-template-areas: 'top' 'prompt' 'stage' 'about' 'panel';
 			gap: 10px;
 			padding: 10px 10px 92px;
 		}
@@ -454,8 +447,10 @@ const stars = Array.from({ length: 150 }, () => {
 		/* The briefing cost the dial a third of its height on a phone when it was
 		   one pair per row. Two pairs per row, tighter type, and the instrument is
 		   back on screen. */
-		.prompt { padding: 10px 12px; }
+		.prompt, .about { padding: 10px 12px; }
 		.prompt .question { font-size: 13px; }
+		/* The difficulty buttons in the header already say which mode is on. */
+		#mode-note { display: none; }
 		.brief {
 			grid-template-columns: auto 1fr auto 1fr;
 			gap: 2px 8px;

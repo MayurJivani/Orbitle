@@ -327,6 +327,23 @@ test('every entry fills both sheets, before the answer and after it', () => {
 	}
 })
 
+test('every entry has a brief, and no brief states a quantity', () => {
+	// The brief is the one line that cannot be derived, so it is the one line a
+	// human could leak the answer in. Two checks: the formatted answers, and any
+	// number carrying a unit at all, which is how a leak would be phrased.
+	const UNITS = /\d[\d,.]*\s*(km\/s|km|AU|miles?|minutes?|hours?|days?|years?|months?|weeks?)\b/i
+	for (const o of OBJECTS) {
+		assert.ok(o.brief?.length > 20, `${o.id} has no brief`)
+		assert.ok(o.brief.length < 90, `${o.id} brief is ${o.brief.length} chars, too long for the card`)
+		assert.ok(!UNITS.test(o.brief), `${o.id} brief states a quantity: "${o.brief}"`)
+		assert.ok(o.brief !== o.note, `${o.id} brief and note are the same line`)
+		for (const q of QUESTIONS) {
+			if (!supports(q, o)) continue
+			assert.ok(!o.brief.includes(q.format(q.valueOf(o))), `${o.id} brief says its ${q.id}`)
+		}
+	}
+})
+
 test('the briefing never leaks any of the three answers', () => {
 	// Distance, period and speed are derivable from each other given the host's
 	// mu, so stating any one of them before the reveal gives away all three.

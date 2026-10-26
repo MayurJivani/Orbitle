@@ -6,7 +6,6 @@
  */
 import {
 	DIAL,
-	FRAMES,
 	MODES,
 	QUESTIONS,
 	ROUNDS_PER_DAY,
@@ -43,8 +42,6 @@ const SVG = 'http://www.w3.org/2000/svg'
 const dial = $('dial')
 const handle = $('handle')
 const ringLayer = $('rings')
-const questionRows = $('questions').querySelectorAll('li')
-const frameRows = $('frames').querySelectorAll('li')
 const el = {
 	day: $('day'),
 	round: $('round'),
@@ -52,6 +49,9 @@ const el = {
 	primary: $('primary'),
 	category: $('category'),
 	question: $('question'),
+	brief: $('brief'),
+	qNow: $('q-now'),
+	frameNow: $('frame-now'),
 	guessLabel: $('guess-label'),
 	readout: $('readout'),
 	hub: $('hub-label'),
@@ -279,12 +279,10 @@ function renderRound() {
 	const { object, question } = round
 	const frame = frameFor(object.km)
 
-	for (const row of questionRows) row.classList.toggle('is-on', row.dataset.question === question.id)
-	for (const row of frameRows) {
-		// Hard highlights nothing: naming the band would hand over most of the
-		// answer before a marker is placed.
-		row.classList.toggle('is-on', !mode.wholeRange && row.dataset.frame === frame.id)
-	}
+	el.qNow.textContent = question.name
+	// Hard names no frame: saying which band the answer is in hands over most of
+	// the question before a marker is placed.
+	el.frameNow.textContent = mode.wholeRange ? 'the whole sky' : `${frame.name}: ${frame.span}`
 
 	el.day.textContent = `${key} · puzzle ${dayNumber(key)}`
 	el.round.textContent = `round ${index + 1} of ${ROUNDS_PER_DAY}`
@@ -293,6 +291,8 @@ function renderRound() {
 		object.kind === 'orbit' ? `orbits ${object.primary}` : `heading away from ${object.primary}`
 	el.category.textContent = object.tags[0]
 	el.question.textContent = question.ask(object)
+
+	el.brief.textContent = object.brief
 
 	// The briefing, before anything is placed. Everything in it is about the
 	// thing and its host, never about where or how fast it goes.
