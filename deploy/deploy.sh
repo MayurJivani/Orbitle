@@ -1,49 +1,50 @@
 #!/bin/sh
-# Ship Orbitle to Jinx. Runs from a dev box, not on Jinx: everything it does
-# there goes over one ssh.
-#
-# The box has git and docker but no node, so it pulls the committed source from
-# GitHub and builds in a throwaway node container. That keeps a node install
-# off the server, and it means what is served is what is on the branch rather
-# than whatever happened to be in a working copy at the time.
-#
-# Needs install.sh to have run once as root first: /opt/apps is root-owned, so
-# the empty app directory has to be created and chowned before a clone can land
-# in it.
+# Build Orbitle here and ship the static dist to Jinx, the way Borderline does.
+# The box has no Docker since the 2026-10-27 rebuild. Re-runnable, no arguments.
 set -eu
+cd "$(dirname "$0")/.."
 
-REPO="${REPO:-https://github.com/MayurJivani/Orbitle.git}"
-BRANCH="${BRANCH:-main}"
-HOST="${HOST:-ssh.futile.studio}"
-# Overridable so a deploy can be aimed at the pre-rename directory while the
-# root step that creates the new one is still pending.
-APP="${APP:-/opt/apps/Orbitle}"
+HOST=${HOST:-ssh.futile.studio}
 
-ssh "$HOST" "
-set -eu
-if [ -d $APP/.git ]; then
-  # Hard reset rather than pull: the box is a deploy target, so the branch wins
-  # over anything that was poked at locally, and a fast-forward that cannot
-  # apply should not stop a deploy.
-  git -C $APP remote set-url origin '$REPO'
-  git -C $APP fetch --prune origin '$BRANCH'
-  git -C $APP reset --hard 'origin/$BRANCH'
-  git -C $APP clean -fd -e node_modules -e dist
-else
-  git clone --branch '$BRANCH' '$REPO' $APP
-fi
+npm test
+npm run build
 
-# Build as the invoking user, or npm leaves root-owned files behind and the next
-# deploy cannot clean them up. HOME is set because npm wants somewhere to put
-# its cache and the container's root home is not writable by this uid.
-docker run --rm \
-  -v $APP:/app -w /app \
-  -u \"\$(id -u):\$(id -g)\" \
-  -e HOME=/tmp \
-  node:22-alpine \
-  sh -c 'npm ci --no-audit --no-fund && npm test && npm run build'
+scp -q deploy/orbitle.caddy "$HOST":/tmp/orbitle.caddy.incoming
+ssh "$HOST" '
+  set -eu
+  sudo -n install -d -o "$(id -un)" -g "$(id -gn)" /opt/apps/Orbitle
+  LIVE=/etc/caddy/conf.d/orbitle.caddy
+  IN=/tmp/orbitle.caddy.incoming
 
-git -C $APP log -1 --format='orbitle: deployed %h %s'
-"
+  if cmp -s "$IN" "$LIVE"; then
+    rm -f "$IN"
+  else
+    # Validation has to happen with the block already imported, so keep a copy
+    # of whatever was there and put it back if Caddy rejects the result. This
+    # file is imported into the config that serves every other site on the box:
+    # a block that fails to parse would take all of them down at the next
+    # reload, whoever triggers it and for whatever reason.
+    sudo -n cp "$LIVE" "$IN.prev" 2>/dev/null || true
+    sudo -n install -m 644 -o root -g root "$IN" "$LIVE" && rm -f "$IN"
+    if ! caddy validate --adapter caddyfile --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
+      if [ -f "$IN.prev" ]; then sudo -n mv "$IN.prev" "$LIVE"; else sudo -n rm -f "$LIVE"; fi
+      echo "orbitle: site block rejected by caddy validate, config unchanged" >&2
+      exit 1
+    fi
+    sudo -n rm -f "$IN.prev"
+    sudo -n systemctl reload caddy
+    echo "orbitle: site block installed and caddy reloaded"
+  fi
+'
 
-echo "orbitle: http://orbitle.futile.studio"
+# The old copy is cleared entry by entry rather than with `rm -rf` on the
+# directory itself: unlinking needs write on the directory and not on the file,
+# so this still works if an earlier deploy left files behind owned by someone
+# else. A missing directory makes `cd` fail first, before anything is deleted.
+tar czf - -C dist . | ssh "$HOST" '
+  set -eu
+  cd /opt/apps/Orbitle
+  find . -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+  tar xzf -
+'
+echo "orbitle: deployed to https://orbitle.futile.studio"

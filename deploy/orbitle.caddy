@@ -7,7 +7,7 @@
 # config. install.sh strips a block under either name, so re-running it replaces
 # the two-hostname version with this one.
 http://orbitle.futile.studio {
-	root * /opt/apps/Orbitle/dist
+	root * /opt/apps/Orbitle
 	encode zstd gzip
 
 	# Astro hashes the bundle filenames, so the two halves cache differently.
